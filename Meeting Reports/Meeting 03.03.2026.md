@@ -10,3 +10,4 @@
 - Finalizing presentation.
 - Deciding of core concepts of game, designing core structure and explaining implementation and usage of project.
 - Included feasibility study into presentation.
+- Decided of usage of Trello for Kanban tracking
