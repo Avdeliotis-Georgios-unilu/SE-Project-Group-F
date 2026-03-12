@@ -1,0 +1,7 @@
+[project]
+name = "smart-rps"
+version = "0.0.1"
+description = "A smart, ML-based rock-paper-scissors game to promote computer science through interactive play."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
