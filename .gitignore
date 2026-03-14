@@ -1,0 +1,16 @@
+# macOS junk
+._*
+.DS_Store
+**/.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Temp files
+*.tmp
+temp.txt
