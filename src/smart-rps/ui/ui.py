@@ -7,23 +7,24 @@
 # Pygame CE
 import pygame
 # Allows to properly close the game
-import sys
+from sys import exit
 
 pygame.init()
 
 
-# Input = camera gestures so no buttons
+# Input = camera gestures 
 # How to select difficulty:
     # Player shows eg. Rock = Easy, Paper = Medium, Scissors = Hard
-    # Difficulty mode validation: hold-to-confirm for 2 seconds
 
 
 # Active window
-WIDTH, HEIGHT = 1200, 800
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+width, height = 1200, 800
+screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("Smart Rock Paper Scissors")
+clock = pygame.time.Clock()
 
-# Images in memory = pygame surfaces
+# Images = pygame surfaces
+# 2 kinds of surfaces - display surface (screen) and regular surfaces (individual surfaces loaded from files onto display surface)
 
 # colours
 BG = (30, 40, 60)  
@@ -43,16 +44,15 @@ botScore = 0
 playerScore = 0
 difficulty = "Easy"
 
-clock = pygame.time.Clock()
 
 while True:
     screen.fill(BG)
 
     # Layout
-    scoreboard = pygame.Rect(0, 0, WIDTH, 100)
+    scoreboard = pygame.Rect(0, 0, width, 100)
     padding = 20
-    botSection = pygame.Rect(padding, 120, WIDTH // 2 - 30, HEIGHT - 140)
-    playerSection = pygame.Rect(WIDTH // 2 + 10, 120, WIDTH // 2 - 30, HEIGHT - 140)    
+    botSection = pygame.Rect(padding, 120, width // 2 - 30, height - 140)
+    playerSection = pygame.Rect(width // 2 + 10, 120, width // 2 - 30, height - 140)    
 
 
     # Draw sections
@@ -92,9 +92,10 @@ while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
-            sys.exit()
+            exit()
         
  
     pygame.display.update()
+    # Frame rate has maximum 60 FPS
     clock.tick(60)  
 
