@@ -1,22 +1,23 @@
-# Using Pygame to create a UI for Smart RPS
-# Main window, design, and layout with sections for the bot and player
-
 # Using Pygame CE (Community Edition) - is actively maintained
 # Better support for windows + raspberry pi
 
-# Pygame CE
-import pygame
-# Allows to properly close the game
 import sys
+import cv2
+import mediapipe as mp
+import pygame
 
 pygame.init()
 
-
-# Input = camera gestures so no buttons
-# How to select difficulty:
-    # Player shows eg. Rock = Easy, Paper = Medium, Scissors = Hard
-    # Difficulty mode validation: hold-to-confirm for 2 seconds
-
+# Camera + hand detection
+camera = cv2.VideoCapture(0)
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
+hand_detector = mp_hands.Hands(
+    static_image_mode=False,
+    max_num_hands=1,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 
 # Active window
 WIDTH, HEIGHT = 1200, 800
