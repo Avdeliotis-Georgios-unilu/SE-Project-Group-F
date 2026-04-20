@@ -152,7 +152,7 @@ try:
             screen.blit(camera_surface, (playerSection.x + 20, playerSection.y + 80))
 
         # Gesture text
-        gestureText = smallFont.render(f"Gesture: {gesture_name}", True, BLACK)
+        gestureText = smallFont.render(f"{gesture_name}", True, BLACK)
         gestureText_rect = gestureText.get_rect(center=(playerSection.centerx, playerSection.bottom - 25))
         screen.blit(gestureText, gestureText_rect)
 
