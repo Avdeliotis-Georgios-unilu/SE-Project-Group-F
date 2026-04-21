@@ -7,13 +7,14 @@ Computes behavioral constants from human RPS datasets for use in bot.py.
 
 Outputs:
   1. Move frequency distribution (Rock / Paper / Scissors %)
-  2. Win-Stay / Lose-Shift rates
+  2. Win-Stay / Lose-Shift rates (when outcome data available)
   3. Order-1 Markov transition matrix (with Laplace smoothing)
   4. Bot constants ready to paste into bot.py
 
 Supported datasets (via parsers at the bottom):
-  - Brockbank v2  : CSV from json_to_csv_v2.py (filtered: human rows only)
-  - Uppsala       : PizzaRollExpert .txt file
+  - Brockbank v1  : CSV, human-vs-bot (player rows only, uses player_outcome)
+  - Brockbank v2  : CSV, human-vs-bot (has is_bot column, filter for humans)
+  - Uppsala       : PizzaRollExpert .txt file (move-only, no outcome)
   - OSF/Zhang-CMU : CSV (column names adapted once inspected)
   - Synthetic     : our own test CSV
 
@@ -39,71 +40,120 @@ LOSES_TO = {"R": "P", "P": "S", "S": "R"}  # key loses to value
 NAMES = {"R": "Rock", "P": "Paper", "S": "Scissors"}
 
 
-def outcome(player_move, opponent_move):
-    """Return 'WIN', 'LOSS', or 'TIE' from player's perspective."""
-    if player_move == opponent_move:
-        return "TIE"
-    if BEATS[player_move] == opponent_move:
-        return "WIN"
-    return "LOSS"
+# ---------------------------------------------------------------------------
+# ROUND REPRESENTATION
+# Each parser returns a list of rounds:
+#   {"player": "R", "outcome": "WIN"|"LOSS"|"TIE"|None,
+#    "player_id": "...", "new_player": bool}
+#
+# "new_player" is True when this round starts a new player's sequence —
+# analysis functions use it to avoid crossing player boundaries when
+# computing Markov transitions or WSLS pairs.
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
-# PARSERS — each returns a list of rounds:
-#   [{"player": "R", "opponent": "P"}, ...]
-# opponent may be None if not available in the dataset.
+# PARSERS
 # ---------------------------------------------------------------------------
 
 def parse_brockbank(filepath):
     """
-    Brockbank v2 CSV (output of json_to_csv_v2.py).
-    Expected columns: player_id, round_index, player_move, bot_move, is_bot
-    Move encoding: 'rock' / 'paper' / 'scissors'  (lowercase strings)
+    Brockbank (v1 and v2) CSV.
 
-    v2 note: every round has 2 rows (one per side). We filter is_bot == 0
-    to keep only human moves, and pair each human row with its bot counterpart
-    as the opponent.
+    Handles both:
+      - v1: has player_move + player_outcome, no is_bot column
+      - v2: has is_bot column (every round has 2 rows — human + bot),
+            filter is_bot == '0' to keep only human rows
+
+    Move encoding: 'rock' / 'paper' / 'scissors' (lowercase)
+    Outcome encoding: 'win' / 'loss' / 'tie' (lowercase)
+
+    Returns rounds sorted by (player_id, round_index) so consecutive entries
+    are actual consecutive rounds for the same player.
     """
-    encoding = {"rock": "R", "paper": "P", "scissors": "S"}
-    rounds = []
+    move_encoding = {"rock": "R", "paper": "P", "scissors": "S"}
+    outcome_encoding = {"win": "WIN", "loss": "LOSS", "tie": "TIE"}
+
+    raw_rows = []
     with open(filepath, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         print(f"[Brockbank] Columns found: {reader.fieldnames}")
 
-        # v2 has is_bot column — filter for humans only
         has_is_bot = "is_bot" in (reader.fieldnames or [])
+        has_outcome = "player_outcome" in (reader.fieldnames or [])
 
         for row in reader:
-            # Skip bot rows in v2 format
-            if has_is_bot and str(row.get("is_bot", "")).strip() not in ("0", "False", "false", ""):
+            # v2: skip bot rows
+            if has_is_bot and str(row.get("is_bot", "")).strip() != "0":
                 continue
+
+            move = move_encoding.get(str(row.get("player_move", "")).strip().lower())
+            if not move:
+                continue
+
+            outcome = None
+            if has_outcome:
+                outcome = outcome_encoding.get(
+                    str(row.get("player_outcome", "")).strip().lower()
+                )
+
             try:
-                pm = encoding.get(str(row.get("player_move", "")).strip().lower())
-                bm = encoding.get(str(row.get("bot_move", "")).strip().lower())
-            except KeyError:
-                print(f"[Brockbank] Unexpected row keys: {list(row.keys())}")
-                print(f"[Brockbank] Sample row: {dict(row)}")
-                raise
-            if pm:
-                rounds.append({"player": pm, "opponent": bm})
-    print(f"[Brockbank] Loaded {len(rounds)} rounds.")
+                round_index = int(row.get("round_index", 0))
+            except (ValueError, TypeError):
+                round_index = 0
+            player_id = str(row.get("player_id", "")).strip()
+
+            raw_rows.append((player_id, round_index, move, outcome))
+
+    # Sort so consecutive rows = consecutive rounds for the same player.
+    # This is CRITICAL for Markov and WSLS: transitions only make sense
+    # within a single player's sequence.
+    raw_rows.sort(key=lambda r: (r[0], r[1]))
+
+    rounds = []
+    prev_player = None
+    for player_id, _, move, outcome in raw_rows:
+        rounds.append({
+            "player": move,
+            "outcome": outcome,
+            "player_id": player_id,
+            "new_player": (player_id != prev_player),
+        })
+        prev_player = player_id
+
+    n_players = len({r["player_id"] for r in rounds})
+    n_with_outcome = sum(1 for r in rounds if r["outcome"] is not None)
+    print(f"[Brockbank] Loaded {len(rounds)} rounds "
+          f"across {n_players} players "
+          f"({n_with_outcome} with outcome data).")
     return rounds
 
 
 def parse_uppsala(filepath):
     """
     PizzaRollExpert Uppsala .txt format.
-    Encoding: s=rock, x=scissors, p=paper, -=end of game
-    Opponent moves are not recorded — opponent field will be None.
+    Encoding: s=rock, x=scissors, p=paper, -=end of game (player boundary)
+    Outcome not recorded — WSLS will be skipped.
     """
     encoding = {"s": "R", "x": "S", "p": "P"}
     rounds = []
     with open(filepath, encoding="utf-8") as f:
         content = f.read()
+
+    new_player_flag = True
     for char in content:
-        if char in encoding:
-            rounds.append({"player": encoding[char], "opponent": None})
-        # '-' and whitespace are ignored (game separator / whitespace)
+        if char == "-":
+            new_player_flag = True
+        elif char in encoding:
+            rounds.append({
+                "player": encoding[char],
+                "outcome": None,
+                "player_id": None,
+                "new_player": new_player_flag,
+            })
+            new_player_flag = False
+        # whitespace / other chars ignored
+
     print(f"[Uppsala] Loaded {len(rounds)} rounds.")
     return rounds
 
@@ -117,40 +167,69 @@ def parse_osf(filepath):
     """
     encoding = {"rock": "R", "paper": "P", "scissors": "S",
                 "r": "R", "p": "P", "s": "S",
-                "1": "R", "2": "P", "3": "S"}  # common encodings
+                "1": "R", "2": "P", "3": "S"}
+    outcome_encoding = {"win": "WIN", "loss": "LOSS", "tie": "TIE"}
+
     rounds = []
     with open(filepath, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         print(f"[OSF] Columns found: {reader.fieldnames}")
+        prev_player = None
         for row in reader:
             # --- ADJUST COLUMN NAMES HERE once you see them ---
-            player_col = "player_move"   # <-- change if different
-            opponent_col = "opponent_move"  # <-- change if different
-            pm = encoding.get(str(row.get(player_col, "")).strip().lower())
-            bm = encoding.get(str(row.get(opponent_col, "")).strip().lower())
-            if pm:
-                rounds.append({"player": pm, "opponent": bm})
+            player_col = "player_move"
+            outcome_col = "player_outcome"
+            player_id_col = "player_id"
+
+            move = encoding.get(str(row.get(player_col, "")).strip().lower())
+            if not move:
+                continue
+            outcome = outcome_encoding.get(
+                str(row.get(outcome_col, "")).strip().lower()
+            )
+            player_id = str(row.get(player_id_col, "")).strip()
+
+            rounds.append({
+                "player": move,
+                "outcome": outcome,
+                "player_id": player_id,
+                "new_player": (player_id != prev_player),
+            })
+            prev_player = player_id
+
     print(f"[OSF] Loaded {len(rounds)} rounds.")
     return rounds
 
 
 def parse_synthetic(filepath):
     """
-    Our own synthetic dataset (rps_dataset.csv).
+    Our own synthetic dataset.
     Columns: round_id, player_id, player_move, bot_move, result,
              last_player_move, last_result
-    Move encoding: 'Rock' / 'Paper' / 'Scissors'
     """
-    encoding = {"rock": "R", "paper": "P", "scissors": "S"}
+    move_encoding = {"rock": "R", "paper": "P", "scissors": "S"}
+    outcome_encoding = {"win": "WIN", "loss": "LOSS", "tie": "TIE"}
+
     rounds = []
     with open(filepath, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         print(f"[Synthetic] Columns found: {reader.fieldnames}")
+        prev_player = None
         for row in reader:
-            pm = encoding.get(row["player_move"].strip().lower())
-            bm = encoding.get(row["bot_move"].strip().lower())
-            if pm and bm:
-                rounds.append({"player": pm, "opponent": bm})
+            move = move_encoding.get(row.get("player_move", "").strip().lower())
+            if not move:
+                continue
+            outcome = outcome_encoding.get(row.get("result", "").strip().lower())
+            player_id = str(row.get("player_id", "")).strip()
+
+            rounds.append({
+                "player": move,
+                "outcome": outcome,
+                "player_id": player_id,
+                "new_player": (player_id != prev_player),
+            })
+            prev_player = player_id
+
     print(f"[Synthetic] Loaded {len(rounds)} rounds.")
     return rounds
 
@@ -168,10 +247,7 @@ PARSERS = {
 # ---------------------------------------------------------------------------
 
 def frequency_analysis(rounds):
-    """
-    Count how often each move appears.
-    Returns dict: {"R": 0.35, "P": 0.33, "S": 0.32}
-    """
+    """Count how often each move appears."""
     counts = defaultdict(int)
     for r in rounds:
         counts[r["player"]] += 1
@@ -184,47 +260,48 @@ def frequency_analysis(rounds):
     print(f"  Total rounds: {total}")
     print(f"  Literature baseline: Rock ~35%, Paper ~33%, Scissors ~32%")
 
-    # Flag if Rock is over-represented (expected)
     if freq["R"] > 0.34:
         print(f"  -> Rock bias confirmed ({freq['R']*100:.1f}%). "
               f"Bot should open with Paper.")
     else:
-        print(f"  -> Rock bias NOT confirmed in this dataset.")
+        most_freq = max(MOVES, key=lambda m: freq[m])
+        counter = LOSES_TO[most_freq]
+        print(f"  -> Rock bias NOT confirmed. "
+              f"Most frequent move is {NAMES[most_freq]} ({freq[most_freq]*100:.1f}%). "
+              f"Bot should open with {NAMES[counter]}.")
 
     return freq, counts
 
 
 def wsls_analysis(rounds):
     """
-    Win-Stay / Lose-Shift analysis.
-    For each consecutive pair of rounds, check if player:
-      - Stayed (same move) after a WIN
-      - Shifted (different move) after a LOSS
-
-    Requires opponent move to compute outcome.
-    Returns dict with rates.
+    Win-Stay / Lose-Shift using round["outcome"].
+    Skips transitions across player boundaries.
     """
-    # Filter only rounds where we know the opponent move
-    usable = [r for r in rounds if r["opponent"] is not None]
+    usable = [r for r in rounds if r["outcome"] is not None]
     if len(usable) < 2:
         print("\n=== 2. WIN-STAY / LOSE-SHIFT ===")
-        print("  Skipped — no opponent move data in this dataset.")
+        print("  Skipped — no outcome data in this dataset.")
         return None
 
     win_stay = win_shift = 0
     lose_stay = lose_shift = 0
     tie_stay = tie_shift = 0
 
-    for i in range(1, len(usable)):
-        prev = usable[i - 1]
-        curr = usable[i]
-        prev_outcome = outcome(prev["player"], prev["opponent"])
-        stayed = (curr["player"] == prev["player"])
+    for i in range(1, len(rounds)):
+        prev = rounds[i - 1]
+        curr = rounds[i]
 
-        if prev_outcome == "WIN":
+        if curr.get("new_player"):
+            continue
+        if prev["outcome"] is None:
+            continue
+
+        stayed = (curr["player"] == prev["player"])
+        if prev["outcome"] == "WIN":
             if stayed: win_stay += 1
             else:      win_shift += 1
-        elif prev_outcome == "LOSS":
+        elif prev["outcome"] == "LOSS":
             if stayed: lose_stay += 1
             else:      lose_shift += 1
         else:  # TIE
@@ -235,6 +312,11 @@ def wsls_analysis(rounds):
     total_losses = lose_stay + lose_shift
     total_ties   = tie_stay + tie_shift
 
+    if total_wins + total_losses == 0:
+        print("\n=== 2. WIN-STAY / LOSE-SHIFT ===")
+        print("  Skipped — no valid consecutive outcome pairs.")
+        return None
+
     ws_rate = win_stay / total_wins if total_wins else 0
     ls_rate = lose_shift / total_losses if total_losses else 0
 
@@ -243,8 +325,9 @@ def wsls_analysis(rounds):
           f"  (n={total_wins})")
     print(f"  After LOSS : Stay {(1-ls_rate)*100:.1f}%  |  Shift {ls_rate*100:.1f}%"
           f"  (n={total_losses})")
-    print(f"  After TIE  : Stay {tie_stay/(total_ties or 1)*100:.1f}%  |  "
-          f"Shift {tie_shift/(total_ties or 1)*100:.1f}%  (n={total_ties})")
+    if total_ties:
+        print(f"  After TIE  : Stay {tie_stay/total_ties*100:.1f}%  |  "
+              f"Shift {tie_shift/total_ties*100:.1f}%  (n={total_ties})")
     print(f"  Literature baseline: Win-Stay ~60%, Lose-Shift ~80%")
 
     if ws_rate > 0.50:
@@ -265,23 +348,18 @@ def wsls_analysis(rounds):
 
 def markov_analysis(rounds, laplace=True):
     """
-    Build Order-1 Markov transition matrix.
-    P(next_move | prev_move) for each (prev, next) pair.
-
-    With Laplace smoothing:
-      P(next | prev) = (count(prev->next) + 1) / (count(prev) + 3)
-
-    Returns:
-      matrix[prev][next] = probability
+    Order-1 Markov transition matrix.
+    Skips transitions across player boundaries.
     """
-    # Raw counts
     counts = defaultdict(lambda: defaultdict(int))
     for i in range(1, len(rounds)):
+        curr = rounds[i]
+        if curr.get("new_player"):
+            continue
         prev_move = rounds[i - 1]["player"]
-        next_move = rounds[i]["player"]
+        next_move = curr["player"]
         counts[prev_move][next_move] += 1
 
-    # Apply smoothing and normalize
     matrix = {}
     for prev in MOVES:
         row_total = sum(counts[prev][nxt] for nxt in MOVES)
@@ -304,11 +382,10 @@ def markov_analysis(rounds, laplace=True):
             row += f"   {matrix[prev][nxt]:.3f} "
         print(row)
 
-    # For each prev move, what does the bot predict (most likely next move)?
     print("\n  Bot prediction (most likely next move after each move):")
     for prev in MOVES:
         predicted_next = max(MOVES, key=lambda nxt: matrix[prev][nxt])
-        bot_plays = LOSES_TO[predicted_next]  # bot plays what beats the predicted move
+        bot_plays = LOSES_TO[predicted_next]
         print(f"  Player played {NAMES[prev]:8s} -> predict {NAMES[predicted_next]:8s} "
               f"-> bot plays {NAMES[bot_plays]}")
 
@@ -316,10 +393,7 @@ def markov_analysis(rounds, laplace=True):
 
 
 def statistical_check(counts, wsls, matrix):
-    """
-    Quick sanity checks on the computed values.
-    Flags anything that deviates strongly from literature.
-    """
+    """Sanity checks on the computed values."""
     print("\n=== 4. SANITY CHECKS vs LITERATURE ===")
     total = sum(counts.values())
 
@@ -340,9 +414,7 @@ def statistical_check(counts, wsls, matrix):
 
 
 def print_bot_constants(freq, wsls, matrix):
-    """
-    Print the final constants ready to paste into bot.py.
-    """
+    """Print the final constants ready to paste into bot.py."""
     print("\n" + "=" * 60)
     print("BOT CONSTANTS — paste these into bot.py")
     print("=" * 60)
@@ -367,8 +439,10 @@ def print_bot_constants(freq, wsls, matrix):
         print(f"    '{prev}': {{{inner}}},")
     print(f"}}")
 
-    print(f"\n# First move: play Paper (counters Rock bias)")
-    print(f"OPENING_MOVE = 'P'")
+    most_freq = max(MOVES, key=lambda m: freq[m])
+    opening = LOSES_TO[most_freq]
+    print(f"\n# Opening move (counters most-frequent move {NAMES[most_freq]})")
+    print(f"OPENING_MOVE = '{opening}'")
     print("=" * 60)
 
 
@@ -391,7 +465,6 @@ def main():
     print(f"File: {args.file}")
     print("=" * 60)
 
-    # Load data
     parse_fn = PARSERS[args.dataset]
     rounds = parse_fn(args.file)
 
@@ -400,7 +473,6 @@ def main():
               f"Results may not be statistically reliable (need >=30).")
         return
 
-    # Run analyses
     freq, counts = frequency_analysis(rounds)
     wsls = wsls_analysis(rounds)
     matrix = markov_analysis(rounds, laplace=not args.no_laplace)
