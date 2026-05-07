@@ -197,23 +197,28 @@ class RPSBot:
     # ------------------------------------------------------------------
 
     def stats(self):
-        """Return W/L/T counts and win rate from the BOT's perspective."""
+        """Return W/L/T counts and absolute/relative win rates from the BOT's perspective."""
         n = len(self.history)
         if n == 0:
-            return {"rounds": 0, "bot_wins": 0, "player_wins": 0, "ties": 0, "bot_win_rate": 0.0}
+            return {
+                "rounds": 0, "bot_wins": 0, "player_wins": 0, "ties": 0,
+                "bot_win_rate_absolute": 0.0,
+                "bot_win_rate_relative": 0.0,
+            }
 
-        bot_wins    = sum(1 for r in self.history if r["result"] == "loss")  # player lost -> bot won
+        bot_wins    = sum(1 for r in self.history if r["result"] == "loss")
         player_wins = sum(1 for r in self.history if r["result"] == "win")
         ties        = sum(1 for r in self.history if r["result"] == "tie")
+        decisive    = bot_wins + player_wins
 
         return {
-            "rounds":       n,
-            "bot_wins":     bot_wins,
-            "player_wins":  player_wins,
-            "ties":         ties,
-            "bot_win_rate": bot_wins / n,
+            "rounds":                n,
+            "bot_wins":              bot_wins,
+            "player_wins":           player_wins,
+            "ties":                  ties,
+            "bot_win_rate_absolute": bot_wins / n,
+            "bot_win_rate_relative": bot_wins / decisive if decisive > 0 else 0.0,
         }
-
 
 # ============================================================================
 # DEMO — run `python3 bot.py` to see it play against a simulated human
@@ -260,5 +265,6 @@ if __name__ == "__main__":
     print(f"  Player wins   : {s['player_wins']}")
     print(f"  Ties          : {s['ties']}")
     if s["rounds"] > 0:
-        print(f"  Bot win rate  : {s['bot_win_rate']*100:.1f}%")
+        print(f"  Bot win rate (absolute): {s['bot_win_rate_absolute']*100:.1f}%")
+    print(f"  Bot win rate (relative): {s['bot_win_rate_relative']*100:.1f}%")
     sys.exit(0)
