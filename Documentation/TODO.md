@@ -9,4 +9,6 @@
 ## ui
 - add in ui win rate correct ( less important )
 
+## add the naming of the icon under them
+
 - ### gab
