@@ -9,6 +9,13 @@
 ## ui
 - add in ui win rate correct ( less important )
 
-## add the naming of the icon under them
+## add 
+- the naming of the icon under them
+
+## add a fully fandom bot ( easy ) 
+- first level bot strategy 
+
+## data anayslisi of what bot is better 
+- myabe some baskstage file not showing have to figure out  
 
 - ### gab
