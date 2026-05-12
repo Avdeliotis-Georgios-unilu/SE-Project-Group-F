@@ -170,28 +170,17 @@ try:
         scoreboardText_rect = scoreboardText.get_rect(center=scoreboard.center)
         screen.blit(scoreboardText, scoreboardText_rect)
 
-        # Bot label
+
+        # Bot and player 
         botLabel = labelFont.render(f"Bot: {botScore}", True, BLACK)
         botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
         screen.blit(botLabel, botLabel_rect)
 
-        # Bot image (shown after a round is played)
-        if bot_choice and bot_choice in bot_images:
-            img = bot_images[bot_choice]
-            img_rect = img.get_rect(center=(botSection.centerx, botSection.centery))
-            screen.blit(img, img_rect)
-        else:
-            # Waiting message before first round
-            waitText = smallFont.render("Press SPACE to play", True, BLACK)
-            waitRect = waitText.get_rect(center=(botSection.centerx, botSection.centery))
-            screen.blit(waitText, waitRect)
-
-        # Player label
         playerLabel = labelFont.render(f"Player: {playerScore}", True, BLACK)
         playerLabel_rect = playerLabel.get_rect(center=(playerSection.centerx, playerSection.top + 40))
         screen.blit(playerLabel, playerLabel_rect)
 
-        # Camera feed
+        # Camera feed in player section
         if camera_surface is not None:
             screen.blit(camera_surface, (playerSection.x + 20, playerSection.y + 80))
 
