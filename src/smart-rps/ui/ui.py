@@ -59,6 +59,17 @@ botScore = 0
 playerScore = 0
 difficulty = "Easy"
 
+# Camera + hand detection
+camera = cv2.VideoCapture(0)
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
+hand_detector = mp_hands.Hands(
+    static_image_mode=False,
+    max_num_hands=1,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
+
 clock = pygame.time.Clock()
 
 
@@ -185,7 +196,7 @@ try:
             screen.blit(camera_surface, (playerSection.x + 20, playerSection.y + 80))
 
         # Gesture text
-        gestureText = font_small.render(f"{playerGesture}", True, WHITE)
+        gestureText = smallFont.render(f"{gesture_name}", True, WHITE)
         gestureText_rect = gestureText.get_rect(center=(playerSection.centerx, playerSection.bottom - 25))
         screen.blit(gestureText, gestureText_rect)
 
