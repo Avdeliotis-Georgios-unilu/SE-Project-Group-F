@@ -1,7 +1,18 @@
 # Using Pygame CE (Community Edition) - is actively maintained
 # Better support for windows + raspberry pi
 
-import sys, pygame
+import sys
+import os
+import cv2
+import mediapipe as mp
+import pygame
+
+# Bot import
+try:
+    from bot.bot import RPSBot
+except ImportError:
+    from bot import RPSBot
+
 pygame.init()
 
 # Active window
@@ -12,49 +23,109 @@ clock = pygame.time.Clock()
 
 # Images in memory = pygame surfaces
 
-# colours & fonts
-BACKGROUND = (250, 246, 235) 
-PANEL = (255, 255, 255)
-PANEL_EDGE = (225, 190, 95)
-
-ACCENT_BLUE = (65, 140, 255)
-ACCENT_RED = (235, 85, 95)
-ACCENT_GOLD = (235, 180, 55)
-
-TEXT_BRIGHT = (35, 32, 28)
-TEXT_DIM = (120, 105, 80)
+# colours
+BG = (30, 40, 60)
+TEXT_LIGHT = (240, 240, 240)
+BOT_BG = (60, 130, 90)
+PLAYER_BG = (70, 100, 170)
+DIVIDER = (100, 100, 120)
+BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-BLACK = (35, 32, 28)
 
-font_title  = pygame.font.SysFont("bahnschrift", 48, bold=True)
-font_label  = pygame.font.SysFont("bahnschrift", 32, bold=True)
-font_body   = pygame.font.SysFont("bahnschrift", 23)
-font_small  = pygame.font.SysFont("bahnschrift", 18)
-font_result = pygame.font.SysFont("bahnschrift", 34, bold=True)
+titleFont = pygame.font.SysFont(None, 44)
+labelFont = pygame.font.SysFont(None, 36)
+smallFont = pygame.font.SysFont(None, 28)
 
-def drawCard(surface, rect, fill=PANEL, radius=22):
-    shadow = rect.copy()
-    shadow.x += 7
-    shadow.y += 7
-    pygame.draw.rect(surface, (215, 185, 115), shadow, border_radius=radius)
+# Load bot images
+ASSET_PATH = os.path.join(os.path.dirname(__file__), "..", "assets")
+IMAGE_SIZE = (220, 220)
 
-    pygame.draw.rect(surface, fill, rect, border_radius=radius)
-    pygame.draw.rect(surface, PANEL_EDGE, rect, width=2, border_radius=radius)
+def load_bot_image(filename):
+    path = os.path.join(ASSET_PATH, filename)
+    img = pygame.image.load(path).convert_alpha()
+    return pygame.transform.scale(img, IMAGE_SIZE)
 
-def draw_header_bar(surface):
-    header = pygame.Rect(0, 0, WIDTH, 105)
-    pygame.draw.rect(surface, (255, 250, 235), header)
+bot_images = {
+    "R": load_bot_image("RockMC.png"),
+    "P": load_bot_image("PaperMC.png"),
+    "S": load_bot_image("ScissorMC.png"),
+}
 
-    pygame.draw.line(surface, (255, 220, 120), (30, 102), (WIDTH - 30, 102), 6)
-    pygame.draw.line(surface, ACCENT_GOLD, (30, 102), (WIDTH - 30, 102), 2)
-
-
-# State
+# Bot + game state
+bot = RPSBot()
+bot_choice = None
+player_choice = None  # 'R', 'P', 'S' — from camera or keyboard fallback
 botScore = 0
 playerScore = 0
-difficulty = "Medium"
-playerGesture = "No hand"
-botGesture = "No hand"
+difficulty = "Easy"
+
+clock = pygame.time.Clock()
+
+
+def detect_gesture(frame):
+    image = cv2.flip(frame, 1)
+    image_height, image_width, _ = image.shape
+
+    square_size = 300
+    square_x1 = image_width // 2 - square_size // 2
+    square_y1 = image_height // 2 - square_size // 2
+    square_x2 = square_x1 + square_size
+    square_y2 = square_y1 + square_size
+
+    cv2.rectangle(image, (square_x1, square_y1), (square_x2, square_y2), (0, 255, 0), 2)
+
+    hand_area = image[square_y1:square_y2, square_x1:square_x2]
+    hand_area_rgb = cv2.cvtColor(hand_area, cv2.COLOR_BGR2RGB)
+    result = hand_detector.process(hand_area_rgb)
+
+    gesture_name = "No hand"
+
+    if result.multi_hand_landmarks:
+        for one_hand in result.multi_hand_landmarks:
+            mp_draw.draw_landmarks(hand_area, one_hand, mp_hands.HAND_CONNECTIONS)
+            points = one_hand.landmark
+
+            index_up  = points[8].y  < points[6].y
+            middle_up = points[12].y < points[10].y
+            ring_up   = points[16].y < points[14].y
+            pinky_up  = points[20].y < points[18].y
+
+            if not index_up and not middle_up and not ring_up and not pinky_up:
+                gesture_name = "Rock"
+            elif index_up and middle_up and ring_up and pinky_up:
+                gesture_name = "Paper"
+            elif index_up and middle_up and not ring_up and not pinky_up:
+                gesture_name = "Scissors"
+            else:
+                gesture_name = "Unknown"
+
+    return image, gesture_name
+
+
+def gesture_to_move(gesture_name):
+    """Convert gesture string to R/P/S code."""
+    return {"Rock": "R", "Paper": "P", "Scissors": "S"}.get(gesture_name)
+
+
+def cv2_to_pygame(frame, width, height):
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame_rgb = cv2.resize(frame_rgb, (width, height))
+    return pygame.image.frombuffer(frame_rgb.tobytes(), (width, height), "RGB")
+
+
+def play_round(p_move):
+    """Trigger a full round: bot plays, scores update, history recorded."""
+    global bot_choice, botScore, playerScore
+
+    bot_choice = bot.next_move()
+    bot.record_round(player_move=p_move, bot_move=bot_choice)
+
+    last = bot.history[-1]
+    if last["result"] == "loss":   # player lost = bot won
+        botScore += 1
+    elif last["result"] == "win":
+        playerScore += 1
+
 
 try:
     while True:
@@ -66,51 +137,104 @@ try:
             pygame.draw.line(screen, (r, g, b), (0, y), (WIDTH, y))
 
         # Layout
-        scoreboard = pygame.Rect(0, 0, WIDTH, 100)
-        padding = 20
-        botSection = pygame.Rect(padding, 120, WIDTH // 2 - 30, HEIGHT - 140)
-        playerSection = pygame.Rect(WIDTH // 2 + 10, 120, WIDTH // 2 - 30, HEIGHT - 140)    
+        scoreboard   = pygame.Rect(0, 0, WIDTH, 100)
+        padding      = 20
+        botSection   = pygame.Rect(padding, 120, WIDTH // 2 - 30, HEIGHT - 140)
+        playerSection = pygame.Rect(WIDTH // 2 + 10, 120, WIDTH // 2 - 30, HEIGHT - 140)
 
+        # Camera
+        ok, frame = camera.read()
+        gesture_name = "No hand"
+        camera_surface = None
+
+        if ok:
+            processed_frame, gesture_name = detect_gesture(frame)
+            camera_surface = cv2_to_pygame(
+                processed_frame,
+                playerSection.width - 40,
+                playerSection.height - 140
+            )
 
         # Draw sections
-        draw_header_bar(screen)
-        drawCard(screen, botSection)
-        drawCard(screen, playerSection)
+        pygame.draw.rect(screen, BG, scoreboard)
+        pygame.draw.rect(screen, WHITE, botSection, border_radius=20)
+        pygame.draw.rect(screen, WHITE, playerSection, border_radius=20)
+        pygame.draw.rect(screen, DIVIDER, botSection, width=2, border_radius=20)
+        pygame.draw.rect(screen, DIVIDER, playerSection, width=2, border_radius=20)
 
-        # Scoreboard 
-        titleText = font_title.render("SMART RPS", True, TEXT_BRIGHT)
-        screen.blit(titleText, (35, 28))
-
-        scoreboardText = font_label.render(
-            f"Bot {botScore}  :  {playerScore} Player",
-            True,
-            TEXT_BRIGHT
-        )    
-        scoreboardText_rect = scoreboardText.get_rect(center=(WIDTH // 2, 52))
+        # Scoreboard
+        scoreboardText = titleFont.render(
+            f"SMART RPS   |   Bot: {botScore}   Player: {playerScore}   |   Mode: {difficulty}",
+            True, TEXT_LIGHT
+        )
+        scoreboardText_rect = scoreboardText.get_rect(center=scoreboard.center)
         screen.blit(scoreboardText, scoreboardText_rect)
 
-        modeText = font_body.render(f"Mode: {difficulty}", True, ACCENT_GOLD)
-        modeText_rect = modeText.get_rect(midright=(WIDTH - 35, 54))
-        screen.blit(modeText, modeText_rect)
-
-
-        # Bot and player 
-        botLabel = font_label.render("BOT", True, ACCENT_RED)
+        # Bot label
+        botLabel = labelFont.render(f"Bot: {botScore}", True, BLACK)
         botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
         screen.blit(botLabel, botLabel_rect)
 
-        playerLabel = font_label.render("PLAYER", True, ACCENT_BLUE)
+        # Bot image (shown after a round is played)
+        if bot_choice and bot_choice in bot_images:
+            img = bot_images[bot_choice]
+            img_rect = img.get_rect(center=(botSection.centerx, botSection.centery))
+            screen.blit(img, img_rect)
+        else:
+            # Waiting message before first round
+            waitText = smallFont.render("Press SPACE to play", True, BLACK)
+            waitRect = waitText.get_rect(center=(botSection.centerx, botSection.centery))
+            screen.blit(waitText, waitRect)
+
+        # Player label
+        playerLabel = labelFont.render(f"Player: {playerScore}", True, BLACK)
         playerLabel_rect = playerLabel.get_rect(center=(playerSection.centerx, playerSection.top + 40))
         screen.blit(playerLabel, playerLabel_rect)
+
+        # Camera feed
+        if camera_surface is not None:
+            screen.blit(camera_surface, (playerSection.x + 20, playerSection.y + 80))
 
         # Gesture text
         gestureText = font_small.render(f"{playerGesture}", True, WHITE)
         gestureText_rect = gestureText.get_rect(center=(playerSection.centerx, playerSection.bottom - 25))
         screen.blit(gestureText, gestureText_rect)
 
+        # Keyboard fallback hint (shown when no camera) 
+        if not ok:
+            hintText = smallFont.render("No camera — use R / P / S keys to play", True, TEXT_LIGHT)
+            hintRect = hintText.get_rect(center=(playerSection.centerx, playerSection.centery))
+            screen.blit(hintText, hintRect)
+
+        # Events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 raise KeyboardInterrupt
+
+            if event.type == pygame.KEYDOWN:
+
+                # SPACE — play a round using camera gesture (if available)
+                if event.key == pygame.K_SPACE:
+                    p_move = gesture_to_move(gesture_name)
+                    if p_move:
+                        play_round(p_move)
+                    else:
+                        print("[INFO] No valid gesture detected — hold your hand in the box first.")
+
+                # Keyboard fallback: R / P / S
+                elif event.key == pygame.K_r:
+                    play_round("R")
+                elif event.key == pygame.K_p:
+                    play_round("P")
+                elif event.key == pygame.K_s:
+                    play_round("S")
+
+                # Reset game
+                elif event.key == pygame.K_ESCAPE:
+                    bot.reset()
+                    bot_choice = None
+                    botScore = 0
+                    playerScore = 0
 
         pygame.display.update()
         clock.tick(20)
@@ -120,4 +244,3 @@ except KeyboardInterrupt:
 
     pygame.quit()
     sys.exit()
-

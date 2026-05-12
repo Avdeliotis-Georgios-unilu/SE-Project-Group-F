@@ -14,3 +14,7 @@ venv/
 # Temp files
 *.tmp
 temp.txt
+
+# IDE
+.idea/
+.vscode/
