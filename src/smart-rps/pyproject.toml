@@ -2,6 +2,13 @@
 name = "smart-rps"
 version = "0.0.1"
 description = "A smart, ML-based rock-paper-scissors game to promote computer science through interactive play."
-readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.12"
+dependencies = [
+    "pygame",
+    "opencv-python",
+    "mediapipe==0.10.21",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["bot*", "camera*", "game*", "ui*"]
