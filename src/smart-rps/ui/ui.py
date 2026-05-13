@@ -7,6 +7,9 @@ import cv2
 import mediapipe as mp
 import pygame
 
+# ── Toggle this to switch between camera and keyboard-only mode ──
+USE_CAMERA = True
+
 # Bot import
 try:
     from bot.bot import RPSBot
@@ -20,8 +23,6 @@ WIDTH, HEIGHT = 1200, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Smart Rock Paper Scissors")
 clock = pygame.time.Clock()
-
-# Images in memory = pygame surfaces
 
 # colours
 BG = (30, 40, 60)
@@ -60,17 +61,18 @@ playerScore = 0
 difficulty = "Easy"
 
 # Camera + hand detection
-camera = cv2.VideoCapture(0)
-mp_hands = mp.solutions.hands
-mp_draw = mp.solutions.drawing_utils
-hand_detector = mp_hands.Hands(
-    static_image_mode=False,
-    max_num_hands=1,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
-)
-
-clock = pygame.time.Clock()
+if USE_CAMERA:
+    camera = cv2.VideoCapture(0)
+    mp_hands = mp.solutions.hands
+    mp_draw = mp.solutions.drawing_utils
+    hand_detector = mp_hands.Hands(
+        static_image_mode=False,
+        max_num_hands=1,
+        min_detection_confidence=0.5,
+        min_tracking_confidence=0.5
+    )
+else:
+    camera = None
 
 
 def detect_gesture(frame):
@@ -128,6 +130,8 @@ def play_round(p_move):
     """Trigger a full round: bot plays, scores update, history recorded."""
     global bot_choice, botScore, playerScore
 
+    player_choice = p_move
+
     bot_choice = bot.next_move()
     bot.record_round(player_move=p_move, bot_move=bot_choice)
 
@@ -154,17 +158,19 @@ try:
         playerSection = pygame.Rect(WIDTH // 2 + 10, 120, WIDTH // 2 - 30, HEIGHT - 140)
 
         # Camera
-        ok, frame = camera.read()
+        ok = False
         gesture_name = "No hand"
         camera_surface = None
 
-        if ok:
-            processed_frame, gesture_name = detect_gesture(frame)
-            camera_surface = cv2_to_pygame(
-                processed_frame,
-                playerSection.width - 40,
-                playerSection.height - 140
-            )
+        if USE_CAMERA and camera is not None:
+            ok, frame = camera.read()
+            if ok:
+                processed_frame, gesture_name = detect_gesture(frame)
+                camera_surface = cv2_to_pygame(
+                    processed_frame,
+                    playerSection.width - 40,
+                    playerSection.height - 140
+                )
 
         # Draw sections
         pygame.draw.rect(screen, BG, scoreboard)
@@ -181,12 +187,26 @@ try:
         scoreboardText_rect = scoreboardText.get_rect(center=scoreboard.center)
         screen.blit(scoreboardText, scoreboardText_rect)
 
-
-        # Bot and player 
+        # Bot label
         botLabel = labelFont.render(f"Bot: {botScore}", True, BLACK)
         botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
         screen.blit(botLabel, botLabel_rect)
 
+        # Bot move image (show after a round has been played)
+        if bot_choice is not None and bot_choice in bot_images:
+            img = bot_images[bot_choice]
+            img_rect = img.get_rect(center=(botSection.centerx, botSection.centery + 20))
+            screen.blit(img, img_rect)
+
+        # Show last round result
+        if bot.history:
+            last = bot.history[-1]
+            result_map = {"win": "You Win!", "loss": "Bot Wins!", "tie": "Tie!"}
+            result_text = smallFont.render(result_map[last["result"]], True, BLACK)
+            result_rect = result_text.get_rect(center=(botSection.centerx, botSection.bottom - 25))
+            screen.blit(result_text, result_rect)
+
+        # Player label
         playerLabel = labelFont.render(f"Player: {playerScore}", True, BLACK)
         playerLabel_rect = playerLabel.get_rect(center=(playerSection.centerx, playerSection.top + 40))
         screen.blit(playerLabel, playerLabel_rect)
@@ -196,13 +216,13 @@ try:
             screen.blit(camera_surface, (playerSection.x + 20, playerSection.y + 80))
 
         # Gesture text
-        gestureText = smallFont.render(f"{gesture_name}", True, WHITE)
+        gestureText = smallFont.render(f"{gesture_name}", True, BLACK) # Rip 30 minutes whiteonwhite Dx
         gestureText_rect = gestureText.get_rect(center=(playerSection.centerx, playerSection.bottom - 25))
         screen.blit(gestureText, gestureText_rect)
 
-        # Keyboard fallback hint (shown when no camera) 
-        if not ok:
-            hintText = smallFont.render("No camera — use R / P / S keys to play", True, TEXT_LIGHT)
+        # Keyboard hint (shown when camera is off)
+        if not USE_CAMERA:
+            hintText = smallFont.render("No camera — use R / P / S keys to play", True, BLACK)
             hintRect = hintText.get_rect(center=(playerSection.centerx, playerSection.centery))
             screen.blit(hintText, hintRect)
 
@@ -213,8 +233,8 @@ try:
 
             if event.type == pygame.KEYDOWN:
 
-                # SPACE — play a round using camera gesture (if available)
-                if event.key == pygame.K_SPACE:
+                # SPACE — play a round using camera gesture (only with camera)
+                if event.key == pygame.K_SPACE and USE_CAMERA:
                     p_move = gesture_to_move(gesture_name)
                     if p_move:
                         play_round(p_move)
