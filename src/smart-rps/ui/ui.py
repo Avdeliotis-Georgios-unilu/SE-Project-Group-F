@@ -25,17 +25,30 @@ pygame.display.set_caption("Smart Rock Paper Scissors")
 clock = pygame.time.Clock()
 
 # colours
-BG = (30, 40, 60)
-TEXT_LIGHT = (240, 240, 240)
-BOT_BG = (60, 130, 90)
-PLAYER_BG = (70, 100, 170)
-DIVIDER = (100, 100, 120)
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
+BACKGROUND = (120, 95, 185) 
+BACKGROUND_2 = (255, 170, 190)  
+BACKGROUND_3 = (255, 220, 170)  
+PANEL = (255, 246, 218)
+PANEL_EDGE = (120, 95, 55)
+PANEL_SHADOW = (150, 115, 70)
 
-titleFont = pygame.font.SysFont(None, 44)
-labelFont = pygame.font.SysFont(None, 36)
-smallFont = pygame.font.SysFont(None, 28)
+ACCENT_BLUE = (65, 165, 185)
+ACCENT_RED = (205, 85, 65) 
+ACCENT_GOLD = (230, 170, 70) 
+ACCENT_PURPLE = (115, 100, 170) 
+ACCENT_GREEN = (95, 145, 80)
+ACCENT_ORANGE = (220, 125, 55)  
+
+TEXT_BRIGHT = (65, 48, 32)
+TEXT_DIM = (115, 90, 60)
+
+WHITE = (255, 255, 255)
+BLACK = (65, 48, 32)
+
+
+titleFont = pygame.font.SysFont("verdana", 46, bold=True)
+labelFont = pygame.font.SysFont("verdana", 30, bold=True)
+smallFont = pygame.font.SysFont("verdana", 24)
 
 # Load bot images
 ASSET_PATH = os.path.join(os.path.dirname(__file__), "..", "assets")
@@ -75,6 +88,60 @@ else:
     camera = None
 
 
+def draw_game_header(surface):
+    title = titleFont.render("smart RPS", True, WHITE)
+    title_shadow = titleFont.render("smart RPS", True, ACCENT_ORANGE)
+    surface.blit(title_shadow, title_shadow.get_rect(center=(WIDTH // 2 + 3, 53 + 3)))
+    surface.blit(title, title.get_rect(center=(WIDTH // 2, 53)))
+
+    score_text = smallFont.render(
+        f"bot {botScore}  •  player {playerScore}",
+        True,
+        TEXT_BRIGHT
+    )
+    surface.blit(score_text, score_text.get_rect(center=(WIDTH // 2, 95)))
+
+    mode_text = smallFont.render(f"mode: {difficulty}", True, ACCENT_GREEN)
+    surface.blit(mode_text, mode_text.get_rect(midright=(WIDTH - 40, 95)))
+
+
+def draw_background(surface):
+    for x in range(WIDTH):
+        ratio = x / WIDTH
+
+        # purple -> pink
+        if ratio < 0.5:
+            blend = ratio * 2
+
+            r = int(BACKGROUND[0] * (1 - blend) + BACKGROUND_2[0] * blend)
+            g = int(BACKGROUND[1] * (1 - blend) + BACKGROUND_2[1] * blend)
+            b = int(BACKGROUND[2] * (1 - blend) + BACKGROUND_2[2] * blend)
+
+        # pink -> peach
+        else:
+            blend = (ratio - 0.5) * 2
+
+            r = int(BACKGROUND_2[0] * (1 - blend) + BACKGROUND_3[0] * blend)
+            g = int(BACKGROUND_2[1] * (1 - blend) + BACKGROUND_3[1] * blend)
+            b = int(BACKGROUND_2[2] * (1 - blend) + BACKGROUND_3[2] * blend)
+
+        pygame.draw.line(surface, (r, g, b), (x, 0), (x, HEIGHT))
+
+def draw_card(surface, rect, radius=26):
+    shadow = rect.copy()
+    shadow.x += 8
+    shadow.y += 10
+    pygame.draw.rect(surface, (175, 105, 115), shadow, border_radius=radius)
+    pygame.draw.rect(surface, PANEL, rect, border_radius=radius)
+
+def draw_inner_panel(surface, rect, radius=20):
+    pygame.draw.rect(
+        surface,
+        (245, 225, 210),
+        rect,
+        border_radius=radius
+    )
+
 def detect_gesture(frame):
     image = cv2.flip(frame, 1)
     image_height, image_width, _ = image.shape
@@ -85,8 +152,13 @@ def detect_gesture(frame):
     square_x2 = square_x1 + square_size
     square_y2 = square_y1 + square_size
 
-    cv2.rectangle(image, (square_x1, square_y1), (square_x2, square_y2), (0, 255, 0), 2)
-
+    cv2.rectangle(
+        image,
+        (square_x1, square_y1),
+        (square_x2, square_y2),
+        (255, 190, 90),
+        3
+    )
     hand_area = image[square_y1:square_y2, square_x1:square_x2]
     hand_area_rgb = cv2.cvtColor(hand_area, cv2.COLOR_BGR2RGB)
     result = hand_detector.process(hand_area_rgb)
@@ -144,23 +216,40 @@ def play_round(p_move):
 
 try:
     while True:
-        for y in range(HEIGHT):
-            ratio = y / HEIGHT
-            r = 8
-            g = int(10 + ratio * 12)
-            b = int(18 + ratio * 20)
-            pygame.draw.line(screen, (r, g, b), (0, y), (WIDTH, y))
+        draw_background(screen)
 
         # Layout
-        scoreboard   = pygame.Rect(0, 0, WIDTH, 100)
+        draw_game_header(screen)
+        scoreboard   = pygame.Rect(0, 100, WIDTH, 100)
         padding      = 20
-        botSection   = pygame.Rect(padding, 120, WIDTH // 2 - 30, HEIGHT - 140)
-        playerSection = pygame.Rect(WIDTH // 2 + 10, 120, WIDTH // 2 - 30, HEIGHT - 140)
+        botSection   = pygame.Rect(padding, 120, WIDTH // 2 - 30, HEIGHT - 180)
+        playerSection = pygame.Rect(WIDTH // 2 + 10, 120, WIDTH // 2 - 30, HEIGHT - 180)
 
         # Camera
         ok = False
         gesture_name = "No hand"
         camera_surface = None
+
+        # Draw sections
+        draw_card(screen, botSection)
+        draw_card(screen, playerSection)
+
+        botInner = pygame.Rect(
+            botSection.left + 30,
+            botSection.top + 95,
+            botSection.width - 60,
+            botSection.height - 165
+        )
+        playerInner = pygame.Rect(
+            playerSection.left + 30,
+            playerSection.top + 95,
+            playerSection.width - 60,
+            playerSection.height - 165
+        )
+        cameraRect = playerInner
+
+        draw_inner_panel(screen, botInner)
+        draw_inner_panel(screen, playerInner)        
 
         if USE_CAMERA and camera is not None:
             ok, frame = camera.read()
@@ -172,23 +261,9 @@ try:
                     playerSection.height - 140
                 )
 
-        # Draw sections
-        pygame.draw.rect(screen, BG, scoreboard)
-        pygame.draw.rect(screen, WHITE, botSection, border_radius=20)
-        pygame.draw.rect(screen, WHITE, playerSection, border_radius=20)
-        pygame.draw.rect(screen, DIVIDER, botSection, width=2, border_radius=20)
-        pygame.draw.rect(screen, DIVIDER, playerSection, width=2, border_radius=20)
-
-        # Scoreboard
-        scoreboardText = titleFont.render(
-            f"SMART RPS   |   Bot: {botScore}   Player: {playerScore}   |   Mode: {difficulty}",
-            True, TEXT_LIGHT
-        )
-        scoreboardText_rect = scoreboardText.get_rect(center=scoreboard.center)
-        screen.blit(scoreboardText, scoreboardText_rect)
 
         # Bot label
-        botLabel = labelFont.render(f"Bot: {botScore}", True, BLACK)
+        botLabel = labelFont.render("BOT", True, ACCENT_RED)
         botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
         screen.blit(botLabel, botLabel_rect)
 
@@ -201,22 +276,26 @@ try:
         # Show last round result
         if bot.history:
             last = bot.history[-1]
-            result_map = {"win": "You Win!", "loss": "Bot Wins!", "tie": "Tie!"}
+            result_map = {
+                "win": "YOU WIN!",
+                "loss": "BOT WINS!",
+                "tie": "DRAW!"
+            }
             result_text = smallFont.render(result_map[last["result"]], True, BLACK)
             result_rect = result_text.get_rect(center=(botSection.centerx, botSection.bottom - 25))
             screen.blit(result_text, result_rect)
 
         # Player label
-        playerLabel = labelFont.render(f"Player: {playerScore}", True, BLACK)
+        playerLabel = labelFont.render("PLAYER", True, ACCENT_BLUE)
         playerLabel_rect = playerLabel.get_rect(center=(playerSection.centerx, playerSection.top + 40))
         screen.blit(playerLabel, playerLabel_rect)
 
         # Camera feed in player section
         if camera_surface is not None:
-            screen.blit(camera_surface, (playerSection.x + 20, playerSection.y + 80))
+            screen.blit(camera_surface, cameraRect)
 
         # Gesture text
-        gestureText = smallFont.render(f"{gesture_name}", True, BLACK) # Rip 30 minutes whiteonwhite Dx
+        gestureText = smallFont.render(f"{gesture_name.lower()}", True, ACCENT_GREEN) # Rip 30 minutes whiteonwhite Dx
         gestureText_rect = gestureText.get_rect(center=(playerSection.centerx, playerSection.bottom - 25))
         screen.blit(gestureText, gestureText_rect)
 
