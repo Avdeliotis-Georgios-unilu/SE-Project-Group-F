@@ -7,8 +7,7 @@ import cv2
 import mediapipe as mp
 import pygame
 
-# ── Toggle this to switch between camera and keyboard-only mode ──
-USE_CAMERA = True
+USE_CAMERA = True  # Set to False to disable camera and use keyboard controls only
 
 # Bot import
 try:
@@ -331,6 +330,10 @@ try:
                     botScore = 0
                     playerScore = 0
 
+        #Validation text at the bottom of the screen
+        validationText = smallFont.render("Game Validity", True, TEXT_DIM)
+        validationRect = validationText.get_rect(center=(WIDTH // 2, HEIGHT - 20))
+        screen.blit(validationText, validationRect)
         pygame.display.update()
         clock.tick(20)
 
