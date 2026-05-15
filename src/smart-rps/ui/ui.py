@@ -7,7 +7,7 @@ import cv2
 import mediapipe as mp
 import pygame
 
-USE_CAMERA = True  # Set to False to disable camera and use keyboard controls only
+USE_CAMERA = True  # Set to False to disable camera
 
 # Bot import
 try:
@@ -44,6 +44,7 @@ BLACK = (55, 45, 40)
 titleFont = pygame.font.SysFont("verdana", 46, bold=True)
 labelFont = pygame.font.SysFont("verdana", 30, bold=True)
 smallFont = pygame.font.SysFont("verdana", 24)
+hashFont = pygame.font.SysFont("verdana", 16, bold=True)
 
 # Load bot images
 ASSET_PATH = os.path.join(os.path.dirname(__file__), "..", "assets")
@@ -66,7 +67,13 @@ bot_choice = None
 player_choice = None  # 'R', 'P', 'S' — from camera or keyboard fallback
 botScore = 0
 playerScore = 0
-difficulty = "Easy"
+difficulty = ""
+
+countdownActive = False
+countdownStart = 0
+countdownDuration = 3
+CountdownPlayerMove = None
+
 
 # Camera + hand detection
 if USE_CAMERA:
@@ -195,7 +202,7 @@ def cv2_to_pygame(frame, width, height):
 
 def play_round(p_move):
     """Trigger a full round: bot plays, scores update, history recorded."""
-    global bot_choice, botScore, playerScore
+    global bot_choice, player_choice, botScore, playerScore
 
     player_choice = p_move
 
@@ -258,7 +265,7 @@ try:
 
 
         # Bot label
-        botLabel = labelFont.render("BOT", True, ACCENT_RED)
+        botLabel = labelFont.render("bot", True, ACCENT_RED)
         botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
         screen.blit(botLabel, botLabel_rect)
 
@@ -267,6 +274,30 @@ try:
             img = bot_images[bot_choice]
             img_rect = img.get_rect(center=(botSection.centerx, botSection.centery + 20))
             screen.blit(img, img_rect)
+
+        #countdown before bot plays
+        if countdownActive:
+            elapsed = pygame.time.get_ticks() - countdownStart
+            remaining = countdownDuration - (elapsed // 1000)
+
+            if remaining > 0:
+                countdownText = titleFont.render(str(remaining), True, ACCENT_RED)
+                countdownRect = countdownText.get_rect(
+                    center=(botSection.centerx, botSection.centery + 20)
+                )
+                screen.blit(countdownText, countdownRect)
+            else:
+                p_move = gesture_to_move(gesture_name)
+                if p_move:
+                    play_round(p_move)
+                else:
+                    print("[INFO] No valid gesture detected at countdown end")
+                    screen.blit(
+                        smallFont.render("No valid gesture detected", True, ACCENT_RED),
+                        smallFont.get_rect(center=(WIDTH // 2, HEIGHT - 60))
+                    )
+
+                countdownActive = False
 
         # Show last round result
         if bot.history:
@@ -281,7 +312,7 @@ try:
             screen.blit(result_text, result_rect)
 
         # Player label
-        playerLabel = labelFont.render("PLAYER", True, ACCENT_BLUE)
+        playerLabel = labelFont.render("player", True, ACCENT_BLUE)
         playerLabel_rect = playerLabel.get_rect(center=(playerSection.centerx, playerSection.top + 40))
         screen.blit(playerLabel, playerLabel_rect)
 
@@ -308,20 +339,26 @@ try:
             if event.type == pygame.KEYDOWN:
 
                 # SPACE — play a round using camera gesture (only with camera)
-                if event.key == pygame.K_SPACE and USE_CAMERA:
-                    p_move = gesture_to_move(gesture_name)
-                    if p_move:
-                        play_round(p_move)
-                    else:
-                        print("[INFO] No valid gesture detected — hold your hand in the box first.")
-
+                if event.key == pygame.K_SPACE and USE_CAMERA and not countdownActive:
+                    countdownActive = True
+                    countdownStart = pygame.time.get_ticks()
+                    bot_choice = None
                 # Keyboard fallback: R / P / S
-                elif event.key == pygame.K_r:
-                    play_round("R")
-                elif event.key == pygame.K_p:
-                    play_round("P")
-                elif event.key == pygame.K_s:
-                    play_round("S")
+                elif event.key == pygame.K_r and not countdownActive:
+                    CountdownPlayerMove = "R"
+                    countdownActive = True
+                    countdownStart = pygame.time.get_ticks()
+                    bot_choice = None
+                elif event.key == pygame.K_p and not countdownActive:
+                    CountdownPlayerMove = "P"
+                    countdownActive = True
+                    countdownStart = pygame.time.get_ticks()
+                    bot_choice = None
+                elif event.key == pygame.K_s and not countdownActive:
+                    CountdownPlayerMove = "S"
+                    countdownActive = True
+                    countdownStart = pygame.time.get_ticks()
+                    bot_choice = None
 
                 # Reset game
                 elif event.key == pygame.K_ESCAPE:
@@ -331,8 +368,11 @@ try:
                     playerScore = 0
 
         #Validation text at the bottom of the screen
-        validationText = smallFont.render("Game Validity", True, TEXT_DIM)
+        validationText = hashFont.render("Game Validity", True, WHITE)
         validationRect = validationText.get_rect(center=(WIDTH // 2, HEIGHT - 20))
+        validationsShadow = hashFont.render("Game Validity", True, ACCENT_ORANGE)
+        validationsShadowRect = validationsShadow.get_rect(center=(WIDTH // 2 + 2, HEIGHT - 18))
+        screen.blit(validationsShadow, validationsShadowRect)
         screen.blit(validationText, validationRect)
         pygame.display.update()
         clock.tick(20)
