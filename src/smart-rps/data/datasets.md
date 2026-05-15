@@ -1,37 +1,31 @@
 # Datasets
 
-## Sources
+## What we use
 
-Two publicly available datasets were used to derive the bot's behavioral constants.
+Two datasets are used to compute the bot's behavioral constants (move frequencies, Win-Stay/Lose-Shift rates, Markov transition probabilities).
 
 ### Brockbank & Vul (2021)
-- **Source**: [OSF repository](https://osf.io/4k5tz/) — *"Human Rock-Paper-Scissors"* by Erik Brockbank and Edward Vul, UC San Diego
-- Two versions of the dataset: `brockbank_v1.csv` and `brockbank_v2.csv`
-- v2 is the larger file and covers human-vs-bot play specifically, which is the most relevant context for this project
-- Format: CSV with columns for player move, opponent move, outcome, and round number
+- **Where**: [OSF repository](https://osf.io/4k5tz/)
+- **Files**: `brockbank_v1.csv`, `brockbank_v2.csv`
+- **Why**: v2 contains human-vs-bot RPS games, which matches our expo setup. It includes outcome data, so we can compute Win-Stay/Lose-Shift rates alongside move frequencies and Markov transitions.
+- **Format**: CSV — columns include `player_move`, `player_outcome`, `player_id`, `round_index`, `is_bot`
 
 ### Uppsala / PizzaRollExpert
-- **Source**: [Kaggle](https://www.kaggle.com/datasets/rasmusrse/rps-tournament-data) — tournament data collected at Uppsala University
-- Single file: `data.txt`
-- Move encoding: `s` = Rock, `x` = Scissors, `p` = Paper
-- Format: plain text, one character per move
+- **Where**: [Kaggle](https://www.kaggle.com/datasets/rasmusrse/rps-tournament-data)
+- **File**: `data.txt`
+- **Why**: large set of human-vs-human tournament moves. No outcome data, so only move frequencies and Markov transitions are computed (WSLS is skipped).
+- **Format**: plain text — `s` = Rock, `x` = Scissors, `p` = Paper, `-` = player boundary
 
----
+## Why they are not in the repository
 
-## Why the datasets are not bundled in the repository
+1. **Not ours** — they belong to their respective authors and are subject to their own licenses.
+2. **Too large** — the Brockbank v2 file in particular would bloat the repo for a one-time analysis step.
 
-The datasets were kept outside the repository (at `~/rps-datasets/`) for two reasons:
+## How they are used
 
-1. **Ownership**: the datasets are not ours. They are the work of their respective authors and are subject to their own licenses. Committing them into the project repo without explicit permission would be inappropriate.
+The datasets are processed offline by `analyze_rps.py`, which parses each file and outputs a `CONSTANTS` block ready to paste into `bot.py`. The bot itself never loads or reads the datasets — it runs on static, pre-computed constants.
 
-2. **Size**: the Brockbank v2 file in particular is large enough that including it would bloat the repository unnecessarily for what is essentially a one-time analysis step.
-
----
-
-## Parser approach
-
-Rather than loading the datasets directly at runtime, a standalone parser script (`analyze_rps.py`) was written to process them offline.
-
-The parser reads each dataset, computes the relevant behavioral statistics (move frequencies, Win-Stay/Lose-Shift rates, Markov transition probabilities), and outputs a ready-to-paste `CONSTANTS` block for `bot.py`.
-
-This keeps the bot itself lean and dependency-free at runtime: it operates on static, pre-computed constants rather than carrying dataset loading logic or large data files into the expo environment.
+```
+python analyze_rps.py --dataset brockbank --file data/brockbank_v2.csv
+python analyze_rps.py --dataset uppsala   --file data/data.txt
+```
