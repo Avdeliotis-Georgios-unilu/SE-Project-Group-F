@@ -1,0 +1,13 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Smart RPS — UI",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/smart-rps/ui/ui.py",
+            "cwd": "${workspaceFolder}/src/smart-rps",
+            "python": "${workspaceFolder}/.venv/Scripts/python.exe"
+        }
+    ]
+}
