@@ -15,7 +15,7 @@ try:
 except ImportError:
     from bot import RPSBot
 
-import fairness
+# import fairness
 
 pygame.init()
 
@@ -48,7 +48,7 @@ labelFont = pygame.font.SysFont("verdana", 30, bold=True)
 smallFont = pygame.font.SysFont("verdana", 24)
 hashFont = pygame.font.SysFont("verdana", 16, bold=True)
 
-# Load bot images
+# Load images
 ASSET_PATH = os.path.join(os.path.dirname(__file__), "..", "assets")
 IMAGE_SIZE = (220, 220)
 
@@ -62,6 +62,8 @@ bot_images = {
     "P": load_bot_image("PaperMC.png"),
     "S": load_bot_image("ScissorMC.png"),
 }
+signpost = pygame.image.load(os.path.join(ASSET_PATH, "signpost.png")).convert_alpha()
+signpost = pygame.transform.scale(signpost, (220, 220))
 
 # Bot + game state
 bot = RPSBot()
@@ -69,7 +71,7 @@ bot_choice = None
 player_choice = None  # 'R', 'P', 'S' — from camera or keyboard fallback
 botScore = 0
 playerScore = 0
-difficulty = ""
+difficulty = "placeholder"
 
 countdownActive = False
 countdownStart = 0
@@ -109,9 +111,11 @@ def draw_game_header(surface):
     )
     surface.blit(score_text, score_text.get_rect(center=(WIDTH // 2, 95)))
 
-    mode_text = smallFont.render(f"mode: {difficulty}", True, ACCENT_GREEN)
-    surface.blit(mode_text, mode_text.get_rect(midright=(WIDTH - 40, 95)))
-
+    # Bot mode text on screen
+    surface.blit(signpost, (WIDTH - 290, -20))
+    mode_text = smallFont.render(difficulty, True, ACCENT_GREEN)
+    mode_rect = mode_text.get_rect(center=(WIDTH - 110, 60))
+    surface.blit(mode_text, mode_rect)
 
 def draw_background(surface):
     for x in range(WIDTH):
