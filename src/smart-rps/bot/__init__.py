@@ -1,3 +1,4 @@
-'''Bot Packaging'''
-from .bot import RPSBot
-__all__ = ["RPSBot"]
+"""Bot Packaging"""
+from .bot import StrategicBot, RandomBot
+
+__all__ = ["StrategicBot", "RandomBot"]
