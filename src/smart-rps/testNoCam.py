@@ -1,6 +1,4 @@
 """
-Smart RPS — Alpha
-=================
 Plays Rock-Paper-Scissors: human vs bot, round by round, with a running score.
 
 This is the ALPHA. Player moves are entered on the keyboard (R/P/S).
@@ -80,9 +78,9 @@ def get_player_move_camera(round_num):
         cam.release()
 
 
-# ----------------------------------------------------------------------------
+
 # ROUND LIFECYCLE
-# ----------------------------------------------------------------------------
+
 def play_round(bot, round_num, get_move):
     """Play one round. Returns True if the round was played, False if quit."""
     # Bot decides FIRST (commits to its move before seeing the player's).
