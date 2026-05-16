@@ -30,7 +30,7 @@ BACKGROUND_3 = (235, 210, 170)
 PANEL = (245, 236, 215) 
 PANEL_SHADOW = (120, 90, 100) 
 
-ACCENT_BLUE = (85, 150, 175) 
+ACCENT_PURPLE = (150, 75, 190)
 ACCENT_RED = (180, 95, 75) 
 ACCENT_GREEN = (95, 135, 95)
 ACCENT_ORANGE = (205, 140, 75)
@@ -312,7 +312,7 @@ try:
             screen.blit(result_text, result_rect)
 
         # Player label
-        playerLabel = labelFont.render("player", True, ACCENT_BLUE)
+        playerLabel = labelFont.render("player", True, ACCENT_PURPLE)
         playerLabel_rect = playerLabel.get_rect(center=(playerSection.centerx, playerSection.top + 40))
         screen.blit(playerLabel, playerLabel_rect)
 
