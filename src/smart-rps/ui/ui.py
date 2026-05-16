@@ -7,7 +7,7 @@ import cv2
 import mediapipe as mp
 import pygame
 
-USE_CAMERA = False       # Set to True to enable webcam input
+USE_CAMERA = True       # Set to True to enable webcam input
 USE_RANDOM_BOT = False   # False = strategic (normal), True = random (easy)
                          # Placeholder until the selection screen exists.
 
@@ -135,11 +135,15 @@ def run_game(bot):
     signpost = pygame.transform.scale(signpost, (180, 180))
 
     # Bot + game state
+    bot = None
     bot_choice = None
     player_choice = None  # 'R', 'P', 'S' — from camera or keyboard fallback
     botScore = 0
     playerScore = 0
     difficulty = "easy" if isinstance(bot, RandomBot) else "normal"
+    game_phase = "select_bot"
+    max_rounds = 10
+    resultsStart = 0
 
     countdownActive = False
     countdownStart = 0
@@ -240,6 +244,39 @@ def run_game(bot):
         if commitment_hash is None:
             return "Game Validity"
         return f"{commitment_hash}"
+    
+    def reset_match():
+        nonlocal bot_choice, player_choice, botScore, playerScore
+        nonlocal commitment_hash, commitment_seed, revealed, round_num
+        nonlocal countdownActive
+
+        if bot is not None:
+            bot.reset()
+
+        bot_choice = None
+        player_choice = None
+        botScore = 0
+        playerScore = 0
+        commitment_hash = None
+        commitment_seed = None
+        revealed = False
+        round_num = 1
+        countdownActive = False
+
+
+    def choose_bot_mode(mode):
+        nonlocal bot, difficulty, game_phase
+
+        if mode == "random":
+            bot = RandomBot()
+            difficulty = "Random"
+
+        elif mode == "trained":
+            bot = StrategicBot()
+            difficulty = "Trained"
+
+        reset_match()
+        game_phase = "playing" 
 
     def start_round(forced_move=None):
         """Bot commits its move BEFORE the player reveals. Starts the countdown."""
@@ -255,7 +292,7 @@ def run_game(bot):
 
     def resolve_round(p_move):
         """Player has revealed — score the already-committed bot move."""
-        nonlocal botScore, playerScore, revealed, round_num
+        nonlocal botScore, playerScore, revealed, round_num, game_phase, resultsStart
 
         bot.record_round(player_move=p_move, bot_move=bot_choice)
         last = bot.history[-1]
@@ -266,6 +303,9 @@ def run_game(bot):
 
         revealed = True
         round_num += 1
+        if len(bot.history) >= max_rounds:
+            game_phase = "results"
+            resultsStart = pygame.time.get_ticks()
 
     # Main loop
     try:
@@ -320,14 +360,24 @@ def run_game(bot):
             botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
             screen.blit(botLabel, botLabel_rect)
 
+            # Bot mode selection instructions
+            if game_phase == "select_bot":
+                choose1 = smallFont.render("Choose bot mode", True, TEXT_BRIGHT)
+                choose2 = smallFont.render("Press R = Random Bot", True, ACCENT_RED)
+                choose3 = smallFont.render("Press T = Trained Bot", True, ACCENT_PURPLE)
+
+                screen.blit(choose1, choose1.get_rect(center=(botSection.centerx, botSection.centery - 50)))
+                screen.blit(choose2, choose2.get_rect(center=(botSection.centerx, botSection.centery)))
+                screen.blit(choose3, choose3.get_rect(center=(botSection.centerx, botSection.centery + 50)))
+
             # Bot move image — only shown AFTER the reveal
-            if revealed and bot_choice in bot_images:
+            if game_phase == "playing" and revealed and bot_choice in bot_images:
                 img = bot_images[bot_choice]
                 img_rect = img.get_rect(center=(botSection.centerx, botSection.centery + 20))
                 screen.blit(img, img_rect)
 
             # Reveals player move
-            if countdownActive:
+            if game_phase == "playing" and countdownActive:
                 elapsed = pygame.time.get_ticks() - countdownStart
                 remaining = countdownDuration - (elapsed // 1000)
 
@@ -350,7 +400,7 @@ def run_game(bot):
                     countdownActive = False
 
             # Show last round result (only after reveal)
-            if revealed and bot.history:
+            if game_phase == "playing" and revealed and bot.history:
                 last = bot.history[-1]
                 result_map = {
                     "win": "YOU WIN!",
@@ -381,6 +431,30 @@ def run_game(bot):
                 hintRect = hintText.get_rect(center=(playerSection.centerx, playerSection.centery))
                 screen.blit(hintText, hintRect)
 
+            # Final results screen after max rounds reached
+            if game_phase == "results":
+                result1 = titleFont.render("Final Results", True, ACCENT_RED)
+                result2 = smallFont.render(f"Bot: {botScore}   Player: {playerScore}", True, TEXT_BRIGHT)
+
+                if playerScore > botScore:
+                    winner = "Player wins!"
+                elif botScore > playerScore:
+                    winner = "Bot wins!"
+                else:
+                    winner = "Draw!"
+
+                result3 = smallFont.render(winner, True, ACCENT_PURPLE)
+
+                screen.blit(result1, result1.get_rect(center=(botSection.centerx, botSection.centery - 60)))
+                screen.blit(result2, result2.get_rect(center=(botSection.centerx, botSection.centery)))
+                screen.blit(result3, result3.get_rect(center=(botSection.centerx, botSection.centery + 50)))
+
+                if pygame.time.get_ticks() - resultsStart > 4000:
+                    reset_match()
+                    bot = None
+                    difficulty = "Choose"
+                    game_phase = "select_bot"
+
             # Events
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -388,29 +462,31 @@ def run_game(bot):
 
                 if event.type == pygame.KEYDOWN:
 
-                    # SPACE — camera mode: bot commits, player reveals at countdown end
-                    if event.key == pygame.K_SPACE and USE_CAMERA and not countdownActive:
-                        start_round(forced_move=None)
+                    if game_phase == "select_bot":
+                        if event.key == pygame.K_r:
+                            choose_bot_mode("random")
 
-                    # Keyboard fallback: R / P / S
-                    elif event.key == pygame.K_r and not countdownActive:
-                        start_round(forced_move="R")
-                    elif event.key == pygame.K_p and not countdownActive:
-                        start_round(forced_move="P")
-                    elif event.key == pygame.K_s and not countdownActive:
-                        start_round(forced_move="S")
+                        elif event.key == pygame.K_t:
+                            choose_bot_mode("trained")
 
-                    # Reset game
-                    elif event.key == pygame.K_ESCAPE:
-                        bot.reset()
-                        bot_choice = None
-                        botScore = 0
-                        playerScore = 0
-                        commitment_hash = None
-                        commitment_seed = None
-                        revealed = False
-                        round_num = 1
-                        countdownActive = False
+                    elif game_phase == "playing":
+                        if event.key == pygame.K_SPACE and USE_CAMERA and not countdownActive:
+                            start_round(forced_move=None)
+
+                        elif event.key == pygame.K_r and not countdownActive:
+                            start_round(forced_move="R")
+
+                        elif event.key == pygame.K_p and not countdownActive:
+                            start_round(forced_move="P")
+
+                        elif event.key == pygame.K_s and not countdownActive:
+                            start_round(forced_move="S")
+
+                    if event.key == pygame.K_ESCAPE:
+                        reset_match()
+                        bot = None
+                        difficulty = "Choose"
+                        game_phase = "select_bot"
 
             validationText = hashFont.render(draw_fairness(), True, WHITE)
             validationRect = validationText.get_rect(center=(WIDTH // 2, HEIGHT - 20))
