@@ -1,19 +1,27 @@
 """
-RPS Static Bot
+RPS Bots
 
-Decides what move the bot plays next based on the game history.
-All constants are computed offline by analyze_rps.py, not at runtime.
+Two bot implementations sharing the same interface:
 
-Decision priority:
-    Round 1          -> play Paper (exploits Rock bias)
-    After a WIN      -> Win-Stay (predict player repeats)
-    After a LOSS     -> Lose-Shift (predict player changes)
-    After a TIE      -> Markov prediction from last move
+    StrategicBot — static prediction model trained offline on human RPS
+                   datasets (see analyze_rps.py). Priority-order logic:
+                       Round 1     -> play Paper (exploits Rock bias)
+                       After WIN   -> Win-Stay
+                       After LOSS  -> Lose-Shift
+                       After TIE   -> Markov prediction from last move
+
+    RandomBot    — uniform random baseline. Used as the easy opponent
+                   and as a control to measure how much the strategic
+                   bot actually gains over chance.
+
+Both classes expose the same two methods used by the game loop:
+    bot.next_move() -> "R" | "P" | "S"
+    bot.record_round(player_move, bot_move)
 
 Usage:
-    from bot import RPSBot
+    from bot import StrategicBot, RandomBot
 
-    bot = RPSBot()
+    bot = StrategicBot()        # or RandomBot()
     bot_move = bot.next_move()
     bot.record_round(player_move="R", bot_move=bot_move)
 """
@@ -57,11 +65,49 @@ def outcome(player_move, bot_move):
     return "win"
 
 
-# BOT
+def _record(history, player_move, bot_move):
+    """Shared history-recording logic for both bots."""
+    player_move = player_move.upper()
+    bot_move = bot_move.upper()
+    if player_move not in MOVES or bot_move not in MOVES:
+        raise ValueError(f"Invalid move. Must be one of {MOVES}.")
+    history.append({
+        "player": player_move,
+        "bot":    bot_move,
+        "result": outcome(player_move, bot_move),
+    })
 
 
-class RPSBot:
-    """Stateless across games, stateful within a game."""
+def _stats(history):
+    """Shared W/L/T summary for both bots."""
+    n = len(history)
+    if n == 0:
+        return {
+            "rounds": 0, "bot_wins": 0, "player_wins": 0, "ties": 0,
+            "bot_win_rate_absolute": 0.0,
+            "bot_win_rate_relative": 0.0,
+        }
+
+    bot_wins    = sum(1 for r in history if r["result"] == "loss")
+    player_wins = sum(1 for r in history if r["result"] == "win")
+    ties        = sum(1 for r in history if r["result"] == "tie")
+    decisive    = bot_wins + player_wins
+
+    return {
+        "rounds":                n,
+        "bot_wins":              bot_wins,
+        "player_wins":           player_wins,
+        "ties":                  ties,
+        "bot_win_rate_absolute": bot_wins / n,
+        "bot_win_rate_relative": bot_wins / decisive if decisive > 0 else 0.0,
+    }
+
+
+# STRATEGIC BOT
+
+
+class StrategicBot:
+    """Static prediction model. Stateless across games, stateful within a game."""
 
     def __init__(self, seed=None):
         self._rng = random.Random(seed)
@@ -74,20 +120,14 @@ class RPSBot:
 
     def record_round(self, player_move, bot_move):
         """Store the round result so the next prediction has context."""
-        player_move = player_move.upper()
-        bot_move = bot_move.upper()
-        if player_move not in MOVES or bot_move not in MOVES:
-            raise ValueError(f"Invalid move. Must be one of {MOVES}.")
-
-        self.history.append({
-            "player": player_move,
-            "bot":    bot_move,
-            "result": outcome(player_move, bot_move),
-        })
+        _record(self.history, player_move, bot_move)
 
     def reset(self):
         """Clear history between players at the expo."""
         self.history = []
+
+    def stats(self):
+        return _stats(self.history)
 
     def _predict_player_move(self):
         """Predict what the player will play next (priority order)."""
@@ -119,29 +159,29 @@ class RPSBot:
         candidates = [m for m in MOVES if m != exclude]
         return max(candidates, key=lambda m: row[m])
 
+
+# RANDOM BOT
+
+
+class RandomBot:
+    """Uniform random baseline. Used as the easy opponent and as a
+    control to measure how much the strategic bot actually gains."""
+
+    def __init__(self, seed=None):
+        self._rng = random.Random(seed)
+        self.history = []  # kept for interface parity with StrategicBot
+
+    def next_move(self):
+        return self._rng.choice(MOVES)
+
+    def record_round(self, player_move, bot_move):
+        _record(self.history, player_move, bot_move)
+
+    def reset(self):
+        self.history = []
+
     def stats(self):
-        """W/L/T counts and win rates from the bot's perspective."""
-        n = len(self.history)
-        if n == 0:
-            return {
-                "rounds": 0, "bot_wins": 0, "player_wins": 0, "ties": 0,
-                "bot_win_rate_absolute": 0.0,
-                "bot_win_rate_relative": 0.0,
-            }
-
-        bot_wins    = sum(1 for r in self.history if r["result"] == "loss")
-        player_wins = sum(1 for r in self.history if r["result"] == "win")
-        ties        = sum(1 for r in self.history if r["result"] == "tie")
-        decisive    = bot_wins + player_wins
-
-        return {
-            "rounds":                n,
-            "bot_wins":              bot_wins,
-            "player_wins":           player_wins,
-            "ties":                  ties,
-            "bot_win_rate_absolute": bot_wins / n,
-            "bot_win_rate_relative": bot_wins / decisive if decisive > 0 else 0.0,
-        }
+        return _stats(self.history)
 
 
 # DEMO
@@ -149,14 +189,25 @@ class RPSBot:
 if __name__ == "__main__":
     import sys
 
+    # Allow choosing the bot from the command line:
+    #   python bot.py             -> strategic (default)
+    #   python bot.py random      -> random
+    #   python bot.py strategic   -> strategic
+    kind = sys.argv[1].lower() if len(sys.argv) > 1 else "strategic"
+    if kind == "random":
+        bot = RandomBot()
+    elif kind == "strategic":
+        bot = StrategicBot()
+    else:
+        print(f"Unknown bot: {kind!r}. Use 'strategic' or 'random'.")
+        sys.exit(1)
+
     print("=" * 60)
-    print("RPS BOT — interactive demo")
+    print(f"RPS BOT — interactive demo  [bot = {kind}]")
     print("=" * 60)
     print("Type R, P, or S to play. Type 'q' to quit.\n")
 
-    bot = RPSBot()
     round_num = 1
-
     while True:
         try:
             raw = input(f"Round {round_num} — your move (R/P/S/q): ").strip().upper()
