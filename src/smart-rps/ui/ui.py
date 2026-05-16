@@ -7,7 +7,7 @@ import cv2
 import mediapipe as mp
 import pygame
 
-USE_CAMERA = True  # Set to False to disable camera
+USE_CAMERA = False  # Set to False to disable camera
 
 # Bot import
 try:
@@ -71,7 +71,16 @@ bot_choice = None
 player_choice = None  # 'R', 'P', 'S' — from camera or keyboard fallback
 botScore = 0
 playerScore = 0
-difficulty = "placeholder"
+difficulty = "Choose"  # for later, maybe add difficulty selection in UI?
+
+#Starting game
+max_rounds = 10
+round_num = 1            # for later
+revealed = False         # True after the player played the round
+game_phase = "select bot"
+selected_bot = None
+round_delay = 1000
+last_round_time = 0
 
 countdownActive = False
 countdownStart = 0
@@ -81,8 +90,6 @@ CountdownPlayerMove = None
 # Fairness state
 commitment_hash = None
 commitment_seed = None
-revealed = False         # True after the player played the round
-round_num = 1            # for later
 
 # Camera + hand detection
 if USE_CAMERA:
@@ -231,6 +238,7 @@ def start_round(forced_move=None):
 def resolve_round(p_move):
     """Player has revealed — score the already-committed bot move."""
     global botScore, playerScore, revealed, round_num
+    global game_phase, selected_bot, difficulty, last_round_time
 
     bot.record_round(player_move=p_move, bot_move=bot_choice)
     last = bot.history[-1]
@@ -242,6 +250,42 @@ def resolve_round(p_move):
     revealed = True
     round_num += 1
 
+    if len(bot.history) >= max_rounds:
+        reset_game()
+        selected_bot = None
+        difficulty = "choose"
+        game_phase = "select bot"
+        last_round_time = pygame.time.get_ticks()
+
+def choose_bot_mode(move):
+    global selected_bot, difficulty, game_phase
+    if move == "P":
+        selected_bot = "strategic bot"
+        difficulty = "strategic bot"
+        game_phase = "play"
+        reset_game()
+    elif move == "R":
+        selected_bot = "random bot"
+        difficulty = "random bot"
+        game_phase = "play"
+        reset_game()
+    
+
+def reset_game():
+    global bot_choice, player_choice, botScore, playerScore
+    global commitment_hash, commitment_seed, revealed, round_num
+    global countdownActive
+
+    bot.reset()
+    bot_choice = None
+    player_choice = None
+    botScore = 0
+    playerScore = 0
+    commitment_hash = None
+    commitment_seed = None
+    revealed = False
+    round_num = 1
+    countdownActive = False
 
 try:
     while True:
@@ -295,6 +339,15 @@ try:
         botLabel = labelFont.render("bot", True, ACCENT_RED)
         botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
         screen.blit(botLabel, botLabel_rect)
+
+        if game_phase == "select bot":
+            chooseText1 = smallFont.render("Select bot mode", True, TEXT_BRIGHT)
+            chooseText2 = smallFont.render("Show PAPER to play with the strategic bot", True, ACCENT_PURPLE)
+            chooseText3 = smallFont.render("Show SCISSORS to play with the random bot", True, ACCENT_RED)
+
+            screen.blit(chooseText1, chooseText1.get_rect(center=(botSection.centerx, botSection.centery - 50)))
+            screen.blit(chooseText2, chooseText2.get_rect(center=(botSection.centerx, botSection.centery)))
+            screen.blit(chooseText3, chooseText3.get_rect(center=(botSection.centerx, botSection.centery + 50)))
 
         # Bot move image — only shown AFTER the reveal
         if revealed and bot_choice in bot_images:
@@ -358,12 +411,41 @@ try:
             hintRect = hintText.get_rect(center=(playerSection.centerx, playerSection.centery))
             screen.blit(hintText, hintRect)
 
+        # move = bot choice
+        current_move = gesture_to_move(gesture_name)
+        if game_phase == "select bot":
+            if current_move == "P":
+                choose_bot_mode("P")
+                selected_bot = "strategic bot"
+                difficulty = "Strategic"
+                reset_game()
+                game_phase = "play"
+                last_round_time = pygame.time.get_ticks()
+
+            elif current_move == "S":
+                selected_bot = "random"
+                difficulty = "Random"
+                reset_game()
+                game_phase = "play"
+                last_round_time = pygame.time.get_ticks()
+
+        if game_phase == "play" and not countdownActive:
+            now = pygame.time.get_ticks()
+            if now - last_round_time > round_delay:
+                start_round()
+                last_round_time = now
+
         # Events
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 raise KeyboardInterrupt
 
             if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    reset_game()
+                    selected_bot = None
+                    difficulty = "Choose"
+                    game_phase = "select bot"
 
                 # SPACE — camera mode: bot commits, player reveals at countdown end
                 if event.key == pygame.K_SPACE and USE_CAMERA and not countdownActive:
