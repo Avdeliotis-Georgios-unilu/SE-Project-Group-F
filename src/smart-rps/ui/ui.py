@@ -7,13 +7,15 @@ import cv2
 import mediapipe as mp
 import pygame
 
-USE_CAMERA = True  # Set to False to disable camera and use keyboard controls only
+USE_CAMERA = False  # Set to False to disable camera and use keyboard controls only
 
 # Bot import
 try:
     from bot.bot import RPSBot
 except ImportError:
     from bot import RPSBot
+
+import fairness
 
 pygame.init()
 
@@ -68,6 +70,10 @@ botScore = 0
 playerScore = 0
 difficulty = "Easy"
 
+# Fairness state
+commitment_hash = None
+commitment_seed = None
+
 # Camera + hand detection
 if USE_CAMERA:
     camera = cv2.VideoCapture(0)
@@ -107,7 +113,6 @@ def draw_background(surface):
         # purple -> pink
         if ratio < 0.5:
             blend = ratio * 2
-
             r = int(BACKGROUND[0] * (1 - blend) + BACKGROUND_2[0] * blend)
             g = int(BACKGROUND[1] * (1 - blend) + BACKGROUND_2[1] * blend)
             b = int(BACKGROUND[2] * (1 - blend) + BACKGROUND_2[2] * blend)
@@ -115,7 +120,6 @@ def draw_background(surface):
         # pink -> peach
         else:
             blend = (ratio - 0.5) * 2
-
             r = int(BACKGROUND_2[0] * (1 - blend) + BACKGROUND_3[0] * blend)
             g = int(BACKGROUND_2[1] * (1 - blend) + BACKGROUND_3[1] * blend)
             b = int(BACKGROUND_2[2] * (1 - blend) + BACKGROUND_3[2] * blend)
@@ -193,13 +197,20 @@ def cv2_to_pygame(frame, width, height):
     return pygame.image.frombuffer(frame_rgb.tobytes(), (width, height), "RGB")
 
 
+def draw_fairness():
+    if commitment_hash is None:
+        return "Game Validity"
+    return f"{commitment_hash}"
+
+
 def play_round(p_move):
-    """Trigger a full round: bot plays, scores update, history recorded."""
-    global bot_choice, botScore, playerScore
+    """Trigger a full round: bot plays, commits, scores update, history recorded."""
+    global bot_choice, botScore, playerScore, commitment_hash, commitment_seed
 
     player_choice = p_move
 
     bot_choice = bot.next_move()
+    commitment_hash, commitment_seed = fairness.commit(bot_choice)
     bot.record_round(player_move=p_move, bot_move=bot_choice)
 
     last = bot.history[-1]
@@ -256,7 +267,7 @@ try:
                     playerSection.height - 140
                 )
 
-
+        
         # Bot label
         botLabel = labelFont.render("BOT", True, ACCENT_RED)
         botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
@@ -277,8 +288,9 @@ try:
                 "tie": "DRAW!"
             }
             result_text = smallFont.render(result_map[last["result"]], True, BLACK)
-            result_rect = result_text.get_rect(center=(botSection.centerx, botSection.bottom - 25))
+            result_rect = result_text.get_rect(center=(botSection.centerx, botSection.bottom - 55))
             screen.blit(result_text, result_rect)
+
 
         # Player label
         playerLabel = labelFont.render("PLAYER", True, ACCENT_BLUE)
@@ -329,9 +341,10 @@ try:
                     bot_choice = None
                     botScore = 0
                     playerScore = 0
+                    commitment_hash = None
+                    commitment_seed = None
 
-        #Validation text at the bottom of the screen
-        validationText = smallFont.render("Game Validity", True, TEXT_DIM)
+        validationText = smallFont.render(draw_fairness(), True, TEXT_DIM)
         validationRect = validationText.get_rect(center=(WIDTH // 2, HEIGHT - 20))
         screen.blit(validationText, validationRect)
         pygame.display.update()
