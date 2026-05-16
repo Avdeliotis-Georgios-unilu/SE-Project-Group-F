@@ -15,7 +15,7 @@ try:
 except ImportError:
     from bot import RPSBot
 
-# import fairness
+import fairness
 
 pygame.init()
 
