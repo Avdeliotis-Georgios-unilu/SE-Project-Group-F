@@ -76,10 +76,11 @@ countdownStart = 0
 countdownDuration = 3
 CountdownPlayerMove = None
 
-
 # Fairness state
 commitment_hash = None
 commitment_seed = None
+revealed = False         # True after the player played the round
+round_num = 1            # for later
 
 # Camera + hand detection
 if USE_CAMERA:
@@ -210,21 +211,32 @@ def draw_fairness():
     return f"{commitment_hash}"
 
 
-def play_round(p_move):
-    """Trigger a full round: bot plays, commits, scores update, history recorded."""
-    global bot_choice, player_choice, botScore, playerScore, commitment_hash, commitment_seed
-
-    player_choice = p_move
+def start_round(forced_move=None):
+    """Bot commits its move BEFORE the player reveals. Starts the countdown."""
+    global bot_choice, commitment_hash, commitment_seed
+    global countdownActive, countdownStart, CountdownPlayerMove, revealed
 
     bot_choice = bot.next_move()
     commitment_hash, commitment_seed = fairness.commit(bot_choice)
-    bot.record_round(player_move=p_move, bot_move=bot_choice)
+    CountdownPlayerMove = forced_move
+    countdownActive = True
+    countdownStart = pygame.time.get_ticks()
+    revealed = False
 
+
+def resolve_round(p_move):
+    """Player has revealed — score the already-committed bot move."""
+    global botScore, playerScore, revealed, round_num
+
+    bot.record_round(player_move=p_move, bot_move=bot_choice)
     last = bot.history[-1]
-    if last["result"] == "loss":   # player lost = bot won
+    if last["result"] == "loss":
         botScore += 1
     elif last["result"] == "win":
         playerScore += 1
+
+    revealed = True
+    round_num += 1
 
 
 try:
@@ -280,13 +292,13 @@ try:
         botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
         screen.blit(botLabel, botLabel_rect)
 
-        # Bot move image (show after a round has been played)
-        if bot_choice is not None and bot_choice in bot_images:
+        # Bot move image — only shown AFTER the reveal
+        if revealed and bot_choice in bot_images:
             img = bot_images[bot_choice]
             img_rect = img.get_rect(center=(botSection.centerx, botSection.centery + 20))
             screen.blit(img, img_rect)
 
-        #countdown before bot plays
+        # Reveals player move
         if countdownActive:
             elapsed = pygame.time.get_ticks() - countdownStart
             remaining = countdownDuration - (elapsed // 1000)
@@ -298,20 +310,19 @@ try:
                 )
                 screen.blit(countdownText, countdownRect)
             else:
-                p_move = gesture_to_move(gesture_name)
-                if p_move:
-                    play_round(p_move)
+                # Countdown finished — resolve the round
+                if CountdownPlayerMove is not None:
+                    resolve_round(CountdownPlayerMove)
                 else:
-                    print("[INFO] No valid gesture detected at countdown end")
-                    screen.blit(
-                        smallFont.render("No valid gesture detected", True, ACCENT_RED),
-                        smallFont.get_rect(center=(WIDTH // 2, HEIGHT - 60))
-                    )
-
+                    p_move = gesture_to_move(gesture_name)
+                    if p_move:
+                        resolve_round(p_move)
+                    else:
+                        print("[INFO] No valid gesture detected at countdown end")
                 countdownActive = False
 
-        # Show last round result
-        if bot.history:
+        # Show last round result (only after reveal)
+        if revealed and bot.history:
             last = bot.history[-1]
             result_map = {
                 "win": "YOU WIN!",
@@ -350,27 +361,17 @@ try:
 
             if event.type == pygame.KEYDOWN:
 
-                # SPACE — play a round using camera gesture (only with camera)
+                # SPACE — camera mode: bot commits, player reveals at countdown end
                 if event.key == pygame.K_SPACE and USE_CAMERA and not countdownActive:
-                    countdownActive = True
-                    countdownStart = pygame.time.get_ticks()
-                    bot_choice = None
+                    start_round(forced_move=None)
+
                 # Keyboard fallback: R / P / S
                 elif event.key == pygame.K_r and not countdownActive:
-                    CountdownPlayerMove = "R"
-                    countdownActive = True
-                    countdownStart = pygame.time.get_ticks()
-                    bot_choice = None
+                    start_round(forced_move="R")
                 elif event.key == pygame.K_p and not countdownActive:
-                    CountdownPlayerMove = "P"
-                    countdownActive = True
-                    countdownStart = pygame.time.get_ticks()
-                    bot_choice = None
+                    start_round(forced_move="P")
                 elif event.key == pygame.K_s and not countdownActive:
-                    CountdownPlayerMove = "S"
-                    countdownActive = True
-                    countdownStart = pygame.time.get_ticks()
-                    bot_choice = None
+                    start_round(forced_move="S")
 
                 # Reset game
                 elif event.key == pygame.K_ESCAPE:
@@ -380,6 +381,10 @@ try:
                     playerScore = 0
                     commitment_hash = None
                     commitment_seed = None
+                    revealed = False
+                    round_num = 1
+                    countdownActive = False
+
 
         validationText = hashFont.render(draw_fairness(), True, WHITE)
         validationRect = validationText.get_rect(center=(WIDTH // 2, HEIGHT - 20))
