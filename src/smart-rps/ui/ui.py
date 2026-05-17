@@ -131,8 +131,8 @@ def run_game(bot):
         "S": load_bot_image("ScissorMC.png"),
     }
     
-    signpost = pygame.image.load(os.path.join(ASSET_PATH, "signpost.png")).convert_alpha()
-    signpost = pygame.transform.scale(signpost, (180, 180))
+    signpost = pygame.image.load(os.path.join(ASSET_PATH, "hanging_sign.png")).convert_alpha()
+    signpost = pygame.transform.scale(signpost, (150, 150))
 
     # Bot + game state
     bot = None
@@ -140,20 +140,20 @@ def run_game(bot):
     player_choice = None  # 'R', 'P', 'S' — from camera or keyboard fallback
     botScore = 0
     playerScore = 0
-    difficulty = "easy" if isinstance(bot, RandomBot) else "normal"
+    difficulty = "Bot Mode"
     game_phase = "select_bot"
     max_rounds = 10
     resultsStart = 0
 
     # reveal phase
     revealStart = 0
-    revealDuration = 1500
+    revealDuration = 3000
     revealed = False
 
     #countdown before using players move
     countdownActive = False
     countdownStart = 0
-    countdownDuration = 2
+    countdownDuration = 3
     CountdownPlayerMove = None
     if USE_CAMERA is False:
         countdownDuration = 0
@@ -161,7 +161,7 @@ def run_game(bot):
     # Fairness state
     commitment_hash = None
     commitment_seed = None
-    round_num = 1            # for later
+    round_num = 0            # for later
 
     # Camera + hand detection
     if USE_CAMERA:
@@ -182,7 +182,7 @@ def run_game(bot):
 
     # Inner helpers that close over the state above.
 
-    def draw_game_header(surface):
+    def draw_game_header(surface, round_num, max_rounds):
         title = titleFont.render("smart RPS", True, WHITE)
         title_shadow = titleFont.render("smart RPS", True, ACCENT_ORANGE)
         surface.blit(title_shadow, title_shadow.get_rect(center=(WIDTH // 2 + 3, 53 + 3)))
@@ -195,11 +195,12 @@ def run_game(bot):
         )
         surface.blit(score_text, score_text.get_rect(center=(WIDTH // 2, 95)))
 
-        # Bot mode text layout on screen with signpost
-        surface.blit(signpost, (WIDTH - 290, -20))
-        mode_text = smallFont.render(difficulty, True, ACCENT_GREEN)
-        mode_rect = mode_text.get_rect(center=(WIDTH - 110, 60))
-        surface.blit(mode_text, mode_rect)
+        # Rounds text upper left corner
+        round_bg = pygame.Rect(12, 12, 160, 36)
+        pygame.draw.rect(surface, PANEL_SHADOW, round_bg, border_radius=8)
+        round_surf = hashFont.render(f"ROUND  {round_num} / {max_rounds}", True, WHITE)
+        surface.blit(round_surf, round_surf.get_rect(center=round_bg.center))
+
 
     def detect_gesture(frame):
         image = cv2.flip(frame, 1)
@@ -265,7 +266,7 @@ def run_game(bot):
         commitment_hash = None
         commitment_seed = None
         revealed = False
-        round_num = 1
+        round_num = 0
         countdownActive = False
         CountdownPlayerMove = None
 
@@ -313,12 +314,13 @@ def run_game(bot):
         revealed = True
         revealStart = pygame.time.get_ticks()
         countdownActive = False
-        round_num += 1
 
         # If 10 rounds finished go to results
         if len(bot.history) >= max_rounds:
             game_phase = "results"
             resultsStart = pygame.time.get_ticks()
+        else:
+            round_num += 1
 
     # Main loop
     try:
@@ -326,7 +328,7 @@ def run_game(bot):
             draw_background(screen)
 
             # Layout
-            draw_game_header(screen)
+            draw_game_header(screen, round_num, max_rounds)
             scoreboard   = pygame.Rect(0, 100, WIDTH, 100)
             padding      = 20
             botSection   = pygame.Rect(padding, 120, WIDTH // 2 - 30, HEIGHT - 180)
@@ -341,6 +343,19 @@ def run_game(bot):
             draw_card(screen, botSection)
             draw_card(screen, playerSection)
 
+            #signpost
+            sign_x = playerSection.right - signpost.get_width() - 20
+            sign_y = 0
+
+            screen.blit(signpost, (sign_x, sign_y))
+
+            mode_text = smallFont.render(difficulty, True, WHITE)
+            mode_rect = mode_text.get_rect(
+                center=(sign_x + signpost.get_width() // 2, sign_y + 105)
+            )
+            screen.blit(mode_text, mode_rect)
+
+            #sections
             botInner = pygame.Rect(
                 botSection.left + 30,
                 botSection.top + 95,
@@ -425,7 +440,8 @@ def run_game(bot):
                     "loss": "BOT WINS!",
                     "tie": "DRAW!"
                 }
-                result_text = smallFont.render(result_map[last["result"]], True, BLACK)
+                result_colours = {"win": ACCENT_GREEN, "loss": ACCENT_RED, "tie": ACCENT_ORANGE}
+                result_text = smallFont.render(result_map[last["result"]], True, result_colours[last["result"]])
                 result_rect = result_text.get_rect(center=(botSection.centerx, botSection.bottom - 55))
                 screen.blit(result_text, result_rect)
 
@@ -444,7 +460,7 @@ def run_game(bot):
                 screen.blit(camera_surface, cameraRect)
 
             # Gesture text
-            gestureText = smallFont.render(f"{gesture_name.lower()}", True, ACCENT_GREEN) # Rip 30 minutes whiteonwhite Dx
+            gestureText = labelFont.render(f"{gesture_name.lower()}", True, ACCENT_GREEN) 
             gestureText_rect = gestureText.get_rect(center=(playerSection.centerx, playerSection.bottom - 25))
             screen.blit(gestureText, gestureText_rect)
 
@@ -472,7 +488,7 @@ def run_game(bot):
                 screen.blit(result2, result2.get_rect(center=(botSection.centerx, botSection.centery)))
                 screen.blit(result3, result3.get_rect(center=(botSection.centerx, botSection.centery + 50)))
 
-                if pygame.time.get_ticks() - resultsStart > 4000:
+                if pygame.time.get_ticks() - resultsStart > 6000:
                     reset_match()
                     bot = None
                     difficulty = "Choose"
@@ -513,9 +529,6 @@ def run_game(bot):
 
             validationText = hashFont.render(draw_fairness(), True, WHITE)
             validationRect = validationText.get_rect(center=(WIDTH // 2, HEIGHT - 20))
-            validationsShadow = hashFont.render("Game Validity", True, ACCENT_ORANGE)
-            validationsShadowRect = validationsShadow.get_rect(center=(WIDTH // 2 + 2, HEIGHT - 18))
-            screen.blit(validationsShadow, validationsShadowRect)
             screen.blit(validationText, validationRect)
             pygame.display.update()
             clock.tick(20)
