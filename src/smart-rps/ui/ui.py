@@ -211,7 +211,7 @@ def run_game(bot):
 
     def draw_game_header(surface, round_num, max_rounds):
         title = titleFont.render("smart RPS", True, WHITE)
-        title_shadow = titleFont.render("smart RPS", True, ACCENT_ORANGE)
+        title_shadow = titleFont.render("smart RPS", True, BACKGROUND_3)
         surface.blit(title_shadow, title_shadow.get_rect(center=(WIDTH // 2 + 3, 35 + 3)))
         surface.blit(title, title.get_rect(center=(WIDTH // 2, 35)))
 
@@ -411,7 +411,7 @@ def run_game(bot):
                     )
 
             # Bot label
-            botLabel = labelFont.render("bot", True, ACCENT_RED)
+            botLabel = labelFont.render("bot", True, BACKGROUND_2)
             botLabel_rect = botLabel.get_rect(center=(botSection.centerx, botSection.top + 40))
             screen.blit(botLabel, botLabel_rect)
 
@@ -468,7 +468,7 @@ def run_game(bot):
                     "tie": "DRAW!"
                 }
                 result_colours = {"win": ACCENT_GREEN, "loss": ACCENT_RED, "tie": ACCENT_ORANGE}
-                result_text = smallFont.render(result_map[last["result"]], True, result_colours[last["result"]])
+                result_text = labelFont.render(result_map[last["result"]], True, result_colours[last["result"]])
                 result_rect = result_text.get_rect(center=(botSection.centerx, botSection.bottom - 55))
                 screen.blit(result_text, result_rect)
 
@@ -478,7 +478,7 @@ def run_game(bot):
                         start_round()
 
             # Player label
-            playerLabel = labelFont.render("player", True, ACCENT_RED)
+            playerLabel = labelFont.render("player", True, BACKGROUND_2)
             playerLabel_rect = playerLabel.get_rect(center=(playerSection.centerx, playerSection.top + 40))
             screen.blit(playerLabel, playerLabel_rect)
 
