@@ -24,9 +24,10 @@ import fairness
 WIDTH, HEIGHT = 1200, 800
 
 # colours
-BACKGROUND = (95, 85, 150)
-BACKGROUND_2 = (165, 135, 195)
-BACKGROUND_3 = (235, 210, 170)
+BACKGROUND = (45, 40, 80)        # dark purple
+BACKGROUND_2 = (80, 65, 120)     # soft violet
+BACKGROUND_3 = (150, 95, 90)     # dusty rose/brown
+
 PANEL = (245, 236, 215)
 PANEL_SHADOW = (120, 90, 100)
 
@@ -45,24 +46,24 @@ BLACK = (55, 45, 40)
 # Drawing helpers — pure functions, no game state.
 
 def draw_background(surface):
-    for x in range(WIDTH):
-        ratio = x / WIDTH
+    for y in range(HEIGHT):
+        ratio = y / HEIGHT
 
-        # purple -> pink
+        # top colour -> middle colour
         if ratio < 0.5:
             blend = ratio * 2
             r = int(BACKGROUND[0] * (1 - blend) + BACKGROUND_2[0] * blend)
             g = int(BACKGROUND[1] * (1 - blend) + BACKGROUND_2[1] * blend)
             b = int(BACKGROUND[2] * (1 - blend) + BACKGROUND_2[2] * blend)
 
-        # pink -> peach
+        # middle colour -> bottom colour
         else:
             blend = (ratio - 0.5) * 2
             r = int(BACKGROUND_2[0] * (1 - blend) + BACKGROUND_3[0] * blend)
-            g = int(BACKGROUND_2[1] * (1 - blend) + BACKGROUND_3[2] * blend)
+            g = int(BACKGROUND_2[1] * (1 - blend) + BACKGROUND_3[1] * blend)
             b = int(BACKGROUND_2[2] * (1 - blend) + BACKGROUND_3[2] * blend)
 
-        pygame.draw.line(surface, (r, g, b), (x, 0), (x, HEIGHT))
+        pygame.draw.line(surface, (r, g, b), (0, y), (WIDTH, y))
 
 
 def draw_card(surface, rect, radius=26):
@@ -80,6 +81,35 @@ def draw_inner_panel(surface, rect, radius=20):
         rect,
         border_radius=radius
     )
+
+def draw_hanging_sign(surface, x, y, text, font):
+    # Rope
+    peg = (x + 80, y + 5)
+    left_hook = (x + 25, y + 55)
+    right_hook = (x + 135, y + 55)
+
+    pygame.draw.line(surface, (95, 65, 45), peg, left_hook, 5)
+    pygame.draw.line(surface, (95, 65, 45), peg, right_hook, 5)
+    pygame.draw.circle(surface, ACCENT_ORANGE, peg, 9)
+
+    # Wooden sign shadow
+    shadow_rect = pygame.Rect(x + 4, y + 60, 160, 70)
+    pygame.draw.rect(surface, (120, 75, 45), shadow_rect, border_radius=10)
+
+    # Wooden sign
+    sign_rect = pygame.Rect(x, y + 55, 160, 70)
+    pygame.draw.rect(surface, (210, 130, 55), sign_rect, border_radius=10)
+    pygame.draw.rect(surface, (120, 75, 45), sign_rect, 4, border_radius=10)
+
+    # Wood highlights
+    pygame.draw.line(surface, (235, 160, 75), (x + 15, y + 72), (x + 55, y + 72), 4)
+    pygame.draw.line(surface, (170, 95, 45), (x + 100, y + 108), (x + 145, y + 108), 4)
+    pygame.draw.line(surface, (180, 100, 45), (x + 25, y + 115), (x + 70, y + 115), 3)
+
+    # Text
+    text_surf = font.render(text, True, WHITE)
+    text_rect = text_surf.get_rect(center=sign_rect.center)
+    surface.blit(text_surf, text_rect)
 
 
 def gesture_to_move(gesture_name):
@@ -131,9 +161,6 @@ def run_game(bot):
         "S": load_bot_image("ScissorMC.png"),
     }
     
-    signpost = pygame.image.load(os.path.join(ASSET_PATH, "hanging_sign.png")).convert_alpha()
-    signpost = pygame.transform.scale(signpost, (150, 150))
-
     # Bot + game state
     bot = None
     bot_choice = None
@@ -185,15 +212,19 @@ def run_game(bot):
     def draw_game_header(surface, round_num, max_rounds):
         title = titleFont.render("smart RPS", True, WHITE)
         title_shadow = titleFont.render("smart RPS", True, ACCENT_ORANGE)
-        surface.blit(title_shadow, title_shadow.get_rect(center=(WIDTH // 2 + 3, 53 + 3)))
-        surface.blit(title, title.get_rect(center=(WIDTH // 2, 53)))
+        surface.blit(title_shadow, title_shadow.get_rect(center=(WIDTH // 2 + 3, 35 + 3)))
+        surface.blit(title, title.get_rect(center=(WIDTH // 2, 35)))
 
         score_text = smallFont.render(
-            f"bot {botScore}  •  player {playerScore}",
+            f"bot: {botScore} | player: {playerScore}",
             True,
-            TEXT_BRIGHT
+            WHITE
         )
-        surface.blit(score_text, score_text.get_rect(center=(WIDTH // 2, 95)))
+        score_rect = score_text.get_rect(center=(WIDTH // 2, 95))
+        scoreBG = score_rect.inflate(35,14)
+        pygame.draw.rect(surface, (70, 55, 95), scoreBG, border_radius=14)
+        pygame.draw.rect(surface, (120, 90, 130), scoreBG, 2, border_radius=14)
+        surface.blit(score_text, score_rect)
 
         # Rounds text upper left corner
         round_bg = pygame.Rect(12, 12, 160, 36)
@@ -344,17 +375,13 @@ def run_game(bot):
             draw_card(screen, playerSection)
 
             #signpost
-            sign_x = playerSection.right - signpost.get_width() - 20
-            sign_y = 0
-
-            screen.blit(signpost, (sign_x, sign_y))
-
-            mode_text = smallFont.render(difficulty, True, WHITE)
-            mode_rect = mode_text.get_rect(
-                center=(sign_x + signpost.get_width() // 2, sign_y + 105)
+            draw_hanging_sign(
+                screen,
+                playerSection.right - 180,
+                0,
+                difficulty,
+                smallFont
             )
-            screen.blit(mode_text, mode_rect)
-
             #sections
             botInner = pygame.Rect(
                 botSection.left + 30,
@@ -390,13 +417,13 @@ def run_game(bot):
 
             # Bot mode selection instructions
             if game_phase == "select_bot":
-                choose1 = smallFont.render("Which bot do you want to play against?", True, TEXT_BRIGHT)
-                choose2 = smallFont.render("Show ROCK for Random Bot", True, ACCENT_PURPLE)
-                choose3 = smallFont.render("Show PAPER for Strategic Bot", True, ACCENT_PURPLE)
+                choose1 = smallFont.render("Choose your bot", True, TEXT_BRIGHT)
+                choose2 = smallFont.render("Show ROCK for Random Bot", True, ACCENT_RED)
+                choose3 = smallFont.render("Show PAPER for Strategic Bot", True, ACCENT_RED)
 
-                screen.blit(choose1, choose1.get_rect(center=(botSection.centerx, botSection.centery - 50)))
-                screen.blit(choose2, choose2.get_rect(center=(botSection.centerx, botSection.centery)))
-                screen.blit(choose3, choose3.get_rect(center=(botSection.centerx, botSection.centery + 50)))
+                screen.blit(choose1, choose1.get_rect(center=(botSection.centerx, botSection.centery - 70)))
+                screen.blit(choose2, choose2.get_rect(center=(botSection.centerx, botSection.centery - 15)))
+                screen.blit(choose3, choose3.get_rect(center=(botSection.centerx, botSection.centery + 35)))
 
                 if gesture_name == "Rock":
                     choose_bot_mode("random")
@@ -451,7 +478,7 @@ def run_game(bot):
                         start_round()
 
             # Player label
-            playerLabel = labelFont.render("player", True, ACCENT_PURPLE)
+            playerLabel = labelFont.render("player", True, ACCENT_RED)
             playerLabel_rect = playerLabel.get_rect(center=(playerSection.centerx, playerSection.top + 40))
             screen.blit(playerLabel, playerLabel_rect)
 
@@ -460,7 +487,7 @@ def run_game(bot):
                 screen.blit(camera_surface, cameraRect)
 
             # Gesture text
-            gestureText = labelFont.render(f"{gesture_name.lower()}", True, ACCENT_GREEN) 
+            gestureText = smallFont.render(f"{gesture_name.lower()}", True, TEXT_DIM) 
             gestureText_rect = gestureText.get_rect(center=(playerSection.centerx, playerSection.bottom - 25))
             screen.blit(gestureText, gestureText_rect)
 
