@@ -390,9 +390,9 @@ def run_game(bot):
 
             # Bot mode selection instructions
             if game_phase == "select_bot":
-                choose1 = smallFont.render("Choose bot mode", True, TEXT_BRIGHT)
-                choose2 = smallFont.render("ROCK = Random Bot", True, ACCENT_RED)
-                choose3 = smallFont.render("PAPER = Strategic Bot", True, ACCENT_PURPLE)
+                choose1 = smallFont.render("Which bot do you want to play against?", True, TEXT_BRIGHT)
+                choose2 = smallFont.render("Show ROCK for Random Bot", True, ACCENT_PURPLE)
+                choose3 = smallFont.render("Show PAPER for Strategic Bot", True, ACCENT_PURPLE)
 
                 screen.blit(choose1, choose1.get_rect(center=(botSection.centerx, botSection.centery - 50)))
                 screen.blit(choose2, choose2.get_rect(center=(botSection.centerx, botSection.centery)))
