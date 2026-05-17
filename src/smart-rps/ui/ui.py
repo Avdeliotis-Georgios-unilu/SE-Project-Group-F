@@ -509,13 +509,13 @@ def run_game(bot):
                 else:
                     winner = "Draw!"
 
-                result3 = smallFont.render(winner, True, ACCENT_PURPLE)
+                result3 = labelFont.render(winner, True, ACCENT_GREEN)
 
                 screen.blit(result1, result1.get_rect(center=(botSection.centerx, botSection.centery - 60)))
                 screen.blit(result2, result2.get_rect(center=(botSection.centerx, botSection.centery)))
                 screen.blit(result3, result3.get_rect(center=(botSection.centerx, botSection.centery + 50)))
 
-                if pygame.time.get_ticks() - resultsStart > 6000:
+                if pygame.time.get_ticks() - resultsStart > 8000:
                     reset_match()
                     bot = None
                     difficulty = "Choose"
