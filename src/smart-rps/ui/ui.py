@@ -145,6 +145,12 @@ def run_game(bot):
     max_rounds = 10
     resultsStart = 0
 
+    # reveal phase
+    revealStart = 0
+    revealDuration = 1500
+    revealed = False
+
+    #countdown before using players move
     countdownActive = False
     countdownStart = 0
     countdownDuration = 2
@@ -155,7 +161,6 @@ def run_game(bot):
     # Fairness state
     commitment_hash = None
     commitment_seed = None
-    revealed = False         # True after the player played the round
     round_num = 1            # for later
 
     # Camera + hand detection
@@ -248,7 +253,7 @@ def run_game(bot):
     def reset_match():
         nonlocal bot_choice, player_choice, botScore, playerScore
         nonlocal commitment_hash, commitment_seed, revealed, round_num
-        nonlocal countdownActive
+        nonlocal countdownActive, CountdownPlayerMove
 
         if bot is not None:
             bot.reset()
@@ -262,6 +267,7 @@ def run_game(bot):
         revealed = False
         round_num = 1
         countdownActive = False
+        CountdownPlayerMove = None
 
 
     def choose_bot_mode(mode):
@@ -273,10 +279,11 @@ def run_game(bot):
 
         elif mode == "trained":
             bot = StrategicBot()
-            difficulty = "Trained"
+            difficulty = "Strategic"
 
         reset_match()
         game_phase = "playing" 
+        start_round()
 
     def start_round(forced_move=None):
         """Bot commits its move BEFORE the player reveals. Starts the countdown."""
@@ -293,6 +300,8 @@ def run_game(bot):
     def resolve_round(p_move):
         """Player has revealed — score the already-committed bot move."""
         nonlocal botScore, playerScore, revealed, round_num, game_phase, resultsStart
+        nonlocal bot_choice, commitment_hash, commitment_seed, countdownActive, CountdownPlayerMove, countdownStart
+        nonlocal revealStart, revealDuration
 
         bot.record_round(player_move=p_move, bot_move=bot_choice)
         last = bot.history[-1]
@@ -302,7 +311,11 @@ def run_game(bot):
             playerScore += 1
 
         revealed = True
+        revealStart = pygame.time.get_ticks()
+        countdownActive = False
         round_num += 1
+
+        # If 10 rounds finished go to results
         if len(bot.history) >= max_rounds:
             game_phase = "results"
             resultsStart = pygame.time.get_ticks()
@@ -363,12 +376,18 @@ def run_game(bot):
             # Bot mode selection instructions
             if game_phase == "select_bot":
                 choose1 = smallFont.render("Choose bot mode", True, TEXT_BRIGHT)
-                choose2 = smallFont.render("Press R = Random Bot", True, ACCENT_RED)
-                choose3 = smallFont.render("Press T = Trained Bot", True, ACCENT_PURPLE)
+                choose2 = smallFont.render("ROCK = Random Bot", True, ACCENT_RED)
+                choose3 = smallFont.render("PAPER = Strategic Bot", True, ACCENT_PURPLE)
 
                 screen.blit(choose1, choose1.get_rect(center=(botSection.centerx, botSection.centery - 50)))
                 screen.blit(choose2, choose2.get_rect(center=(botSection.centerx, botSection.centery)))
                 screen.blit(choose3, choose3.get_rect(center=(botSection.centerx, botSection.centery + 50)))
+
+                if gesture_name == "Rock":
+                    choose_bot_mode("random")
+                elif gesture_name == "Paper":
+                    choose_bot_mode("trained")
+
 
             # Bot move image — only shown AFTER the reveal
             if game_phase == "playing" and revealed and bot_choice in bot_images:
@@ -397,7 +416,6 @@ def run_game(bot):
                             resolve_round(p_move)
                         else:
                             print("[INFO] No valid gesture detected at countdown end")
-                    countdownActive = False
 
             # Show last round result (only after reveal)
             if game_phase == "playing" and revealed and bot.history:
@@ -410,6 +428,11 @@ def run_game(bot):
                 result_text = smallFont.render(result_map[last["result"]], True, BLACK)
                 result_rect = result_text.get_rect(center=(botSection.centerx, botSection.bottom - 55))
                 screen.blit(result_text, result_rect)
+
+                if pygame.time.get_ticks() - revealStart > revealDuration:
+                    if game_phase == "playing":
+                        revealed = False
+                        start_round()
 
             # Player label
             playerLabel = labelFont.render("player", True, ACCENT_PURPLE)
@@ -469,18 +492,18 @@ def run_game(bot):
                         elif event.key == pygame.K_t:
                             choose_bot_mode("trained")
 
-                    elif game_phase == "playing":
-                        if event.key == pygame.K_SPACE and USE_CAMERA and not countdownActive:
-                            start_round(forced_move=None)
+                    # elif game_phase == "playing":
+                    #     if event.key == pygame.K_SPACE and USE_CAMERA and not countdownActive:
+                    #         start_round(forced_move=None)
 
-                        elif event.key == pygame.K_r and not countdownActive:
-                            start_round(forced_move="R")
+                    #     elif event.key == pygame.K_r and not countdownActive:
+                    #         start_round(forced_move="R")
 
-                        elif event.key == pygame.K_p and not countdownActive:
-                            start_round(forced_move="P")
+                    #     elif event.key == pygame.K_p and not countdownActive:
+                    #         start_round(forced_move="P")
 
-                        elif event.key == pygame.K_s and not countdownActive:
-                            start_round(forced_move="S")
+                    #     elif event.key == pygame.K_s and not countdownActive:
+                    #         start_round(forced_move="S")
 
                     if event.key == pygame.K_ESCAPE:
                         reset_match()
