@@ -1,21 +1,18 @@
 import cv2
 import mediapipe as mp
 
-camera = cv2.VideoCapture(0)
-
 mp_hands = mp.solutions.hands
-hand_detector = mp_hands.Hands()
 mp_draw = mp.solutions.drawing_utils  #draws the hand
 
-while True:
-    ok, image = camera.read()  #if cam working
+hand_detector = mp_hands.Hands(
+    static_image_mode=False,
+    max_num_hands=1,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 
-    if not ok:
-        print("Webcam not working") #if not working
-        break
-
-    image = cv2.flip(image, 1) #flips the cam so it s mirrored
-
+def detect_gesture(frame):
+    image = cv2.flip(frame, 1) #flips the cam so it s mirrored
     image_height, image_width, _ = image.shape
 
     square_size = 300                             #creates the square for the hand
@@ -53,13 +50,4 @@ while True:
             else:
                 gesture_name = "Unknown"
 
-    cv2.putText(image,gesture_name, (20, 80),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)  #display gesture
-
-    cv2.imshow("Rock Paper Scissors", image)
-
-    if cv2.waitKey(1) == ord('x'):       #stops if x is pressed
-        break
-
-camera.release()
-cv2.destroyAllWindows()
+    return gesture_name, image
