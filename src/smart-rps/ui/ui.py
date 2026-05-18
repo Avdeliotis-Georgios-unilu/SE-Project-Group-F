@@ -4,8 +4,11 @@
 import sys
 import os
 import cv2
-import mediapipe as mp
 import pygame
+
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(ROOT_DIR)
+from camera.hand_gestures import detect_gesture
 
 USE_CAMERA = True       # Set to True to enable webcam input
 USE_RANDOM_BOT = False   # False = strategic (normal), True = random (easy)
@@ -193,19 +196,8 @@ def run_game(bot):
     # Camera + hand detection
     if USE_CAMERA:
         camera = cv2.VideoCapture(0)
-        mp_hands = mp.solutions.hands
-        mp_draw = mp.solutions.drawing_utils
-        hand_detector = mp_hands.Hands(
-            static_image_mode=False,
-            max_num_hands=1,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
     else:
         camera = None
-        mp_hands = None
-        mp_draw = None
-        hand_detector = None
 
     # Inner helpers that close over the state above.
 
@@ -232,50 +224,6 @@ def run_game(bot):
         round_surf = hashFont.render(f"ROUND  {round_num} / {max_rounds}", True, WHITE)
         surface.blit(round_surf, round_surf.get_rect(center=round_bg.center))
 
-
-    def detect_gesture(frame):
-        image = cv2.flip(frame, 1)
-        image_height, image_width, _ = image.shape
-
-        square_size = 300
-        square_x1 = image_width // 2 - square_size // 2
-        square_y1 = image_height // 2 - square_size // 2
-        square_x2 = square_x1 + square_size
-        square_y2 = square_y1 + square_size
-
-        cv2.rectangle(
-            image,
-            (square_x1, square_y1),
-            (square_x2, square_y2),
-            (255, 190, 90),
-            3
-        )
-        hand_area = image[square_y1:square_y2, square_x1:square_x2]
-        hand_area_rgb = cv2.cvtColor(hand_area, cv2.COLOR_BGR2RGB)
-        result = hand_detector.process(hand_area_rgb)
-
-        gesture_name = "No hand"
-
-        if result.multi_hand_landmarks:
-            for one_hand in result.multi_hand_landmarks:
-                mp_draw.draw_landmarks(hand_area, one_hand, mp_hands.HAND_CONNECTIONS)
-                points = one_hand.landmark
-
-                index_up  = points[8].y  < points[6].y
-                middle_up = points[12].y < points[10].y
-                ring_up   = points[16].y < points[14].y
-                pinky_up  = points[20].y < points[18].y
-
-                if not index_up and not middle_up and not ring_up and not pinky_up:
-                    gesture_name = "Rock"
-                elif index_up and middle_up and ring_up and pinky_up:
-                    gesture_name = "Paper"
-                elif index_up and middle_up and not ring_up and not pinky_up:
-                    gesture_name = "Scissors"
-                else:
-                    gesture_name = "Unknown"
-
-        return image, gesture_name
 
     def draw_fairness():
         if commitment_hash is None:
@@ -403,7 +351,7 @@ def run_game(bot):
             if USE_CAMERA and camera is not None:
                 ok, frame = camera.read()
                 if ok:
-                    processed_frame, gesture_name = detect_gesture(frame)
+                    gesture_name, processed_frame = detect_gesture(frame)
                     camera_surface = cv2_to_pygame(
                         processed_frame,
                         playerSection.width - 40,
