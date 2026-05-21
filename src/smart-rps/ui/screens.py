@@ -916,4 +916,3 @@ def _screen_gameover(surf: pygame.Surface, theme: Theme, state: dict,
     click_zones.append(ClickZone(menu_rect, "quit_to_menu"))
     click_zones.append(ClickZone(play_again_rect, "play_again"))
 
-
