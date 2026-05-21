@@ -1,3 +1,4 @@
+"""SmartRPSGame — state machine, round flow, and main loop."""
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -7,12 +8,12 @@ import pygame
 from game.constants import WINDOW_W, WINDOW_H, FPS
 from game.gesture_lock import GestureLock
 from camera.integration import CameraFeed
-from bot.game_bot import pick_bot_move, judge
+from bot.game_bot import pick_bot_move, judge, update_bot_history, reset_bot
+from ui.fairness import commit
 from ui.theme import Theme, THEME
-from ui.widgets import draw_grid_bg, draw_crt_overlay, ClickZone
+from ui.widgets import ClickZone
 from ui.screens import (_screen_menu, _screen_bot_select,
-                        _screen_howto, _screen_playing,
-                        _screen_gameover)
+                        _screen_playing, _screen_gameover)
 
 
 class SmartRPSGame:
@@ -20,19 +21,20 @@ class SmartRPSGame:
 
     def __init__(self) -> None:
         pygame.init()
-        # pygame.SCALED scales the logical 1600×1000 surface to fit the
+        # pygame.SCALED scales the logical 1280×800 surface to fit the
         # user's display and translates mouse events to logical coordinates.
         # Falls back to a regular window if the hardware renderer is absent
+        # (headless environments, older GPU drivers, etc.).
         try:
             self.screen = pygame.display.set_mode(
                 (WINDOW_W, WINDOW_H), pygame.SCALED)
         except pygame.error:
             self.screen = pygame.display.set_mode((WINDOW_W, WINDOW_H))
-        pygame.display.set_caption("Smart RPS · Camera-Gesture Arcade")
+        pygame.display.set_caption("RPS Arena")
         self.clock = pygame.time.Clock()
 
         # Game state
-        self.screen_name: str = "menu"  # menu | botselect | howto | howto_from_menu | playing | gameover
+        self.screen_name: str = "menu"  # menu | botselect | playing | gameover
         self.phase: str = "idle"  # idle | countdown | shoot | reveal
         self.bot_id: str = "medium"
         self.total_rounds: int = 5
@@ -44,8 +46,12 @@ class SmartRPSGame:
         self.bot_move: Optional[str] = None
         self.locked: bool = False
 
+        # Fairness commitment
+        self.fair_hash: str = ""
+        self.fair_seed: int = 0
+
         # Countdown
-        self.countdown_val: Optional[int | str] = None
+        self.countdown_val = None
         self.countdown_start: int = 0
         self.countdown_num: int = 3
 
@@ -76,9 +82,6 @@ class SmartRPSGame:
         # Button hover state (reset each frame)
         self._click_zones: list[ClickZone] = []
 
-        # How-to return screen
-        self._howto_return: str = "menu"
-
 
     @property
     def theme(self) -> Theme:
@@ -89,14 +92,16 @@ class SmartRPSGame:
         """A live camera is mandatory — the battle is gesture-only."""
         return self.cam_ok and self.cam_status == "LIVE"
 
+    # ------------------------------------------------------------------
     # Camera
-    
+    # ------------------------------------------------------------------
+
     def _read_camera(self):
         """Delegate to the camera feed. Returns (frame, gesture_name)."""
         return self.camera_feed.read()
 
     def _poll_camera(self) -> None:
-        if self.screen_name not in ("playing", "howto"):
+        if self.screen_name != "playing":
             return
         now = pygame.time.get_ticks()
         if self._detect_interval_ms == 0 \
@@ -129,7 +134,10 @@ class SmartRPSGame:
         self.player_move = None
         self.bot_move = None
         self.locked = False
+        self.fair_hash = ""
+        self.fair_seed = 0
         self.gesture_lock.reset()
+        reset_bot()
         self.phase = "idle"
         self.screen_name = "playing"
         self._start_round()
@@ -142,6 +150,7 @@ class SmartRPSGame:
 
         # Bot picks its move now (before player reveals)
         self.bot_move = pick_bot_move(self.bot_id, self.history)
+        self.fair_hash, self.fair_seed = commit(self.bot_move)
 
         # Begin countdown
         self.phase = "countdown"
@@ -195,6 +204,8 @@ class SmartRPSGame:
             "outcome": outcome,
         })
 
+        update_bot_history(player_move, outcome)
+
         if outcome == "win":
             self.player_score += 1
         elif outcome == "lose":
@@ -216,16 +227,20 @@ class SmartRPSGame:
         """Return to main menu."""
         self.screen_name = "menu"
         self.phase = "idle"
+        self.fair_hash = ""
+        self.fair_seed = 0
         self.cam_ok = self.camera_feed.is_open() and self.camera_feed.ok
 
+    # ------------------------------------------------------------------
     # Main loop
+    # ------------------------------------------------------------------
 
     def run(self) -> None:
         """Run the game loop."""
         running = True
 
         while running:
-            self.clock.tick(FPS)
+            dt = self.clock.tick(FPS)
             self.clock_tick += 1
 
             # --- Event handling ---
@@ -244,47 +259,33 @@ class SmartRPSGame:
                     if self.player_move:
                         self._resolve_round(self.player_move)
 
-            # Update
+            # --- Update ---
             self._handle_countdown()
             self._check_reveal_done()
             self._poll_camera()
 
-            # Draw
+            # --- Draw ---
             self._click_zones.clear()
             self.screen.fill(self.theme.bg)
-            draw_grid_bg(self.screen, self.theme)
 
             if self.screen_name == "menu":
-                _screen_menu(self.screen, self.theme, self.clock_tick,
-                             self._click_zones)
+                _screen_menu(self.screen, self.theme, self._click_zones)
             elif self.screen_name == "botselect":
                 _screen_bot_select(self.screen, self.theme,
                                     self.bot_id, self.total_rounds,
                                     self._click_zones, self.camera_ready)
-                # Also render menu underneath (as "howto_from_menu" pattern)
-            elif self.screen_name == "howto_from_menu":
-                _screen_menu(self.screen, self.theme, self.clock_tick,
-                             self._click_zones)
-                _screen_howto(self.screen, self.theme, self._click_zones)
-            elif self.screen_name == "howto":
-                # Show game underneath
-                self._draw_playing_screen()
-                _screen_howto(self.screen, self.theme, self._click_zones)
             elif self.screen_name == "playing":
                 self._draw_playing_screen()
             elif self.screen_name == "gameover":
                 _screen_gameover(self.screen, self.theme,
                                  self._build_state_dict(), self._click_zones)
 
-            # CRT overlay (always on)
-            draw_crt_overlay(self.screen)
-
             pygame.display.flip()
 
         self._cleanup()
 
     def _draw_playing_screen(self) -> None:
-        """Draw the playing screen (also used as background for howto overlay).
+        """Draw the playing screen.
 
         Uses the frame cached by _poll_camera so the device is read at most
         once per tick.
@@ -313,18 +314,16 @@ class SmartRPSGame:
             "cam_status": self.cam_status,
             "cam_ok": self.cam_ok,
             "clock_tick": self.clock_tick,
+            "fair_hash": self.fair_hash,
+            "fair_seed": self.fair_seed,
         }
 
     def _handle_keydown(self, event: pygame.event.Event) -> bool:
         """Handle keyboard input. Returns False if the game should quit."""
         if event.key == pygame.K_ESCAPE:
-            if self.screen_name in ("playing", "howto"):
+            if self.screen_name == "playing":
                 self.quit_to_menu()
-            elif self.screen_name == "botselect":
-                self.screen_name = "menu"
-            elif self.screen_name == "howto_from_menu":
-                self.screen_name = "menu"
-            elif self.screen_name == "gameover":
+            elif self.screen_name in ("botselect", "gameover"):
                 self.screen_name = "menu"
             return True
 
@@ -349,24 +348,6 @@ class SmartRPSGame:
         """Execute the action associated with a click zone."""
         if action == "start":
             self.screen_name = "botselect"
-
-        elif action == "howto":
-            if self.screen_name == "menu":
-                self.screen_name = "howto_from_menu"
-                self._howto_return = "menu"
-            else:
-                self._howto_return = self.screen_name
-                self.screen_name = "howto"
-
-        elif action == "toggle_howto":
-            if self.screen_name == "howto":
-                self.screen_name = self._howto_return
-            else:
-                self._howto_return = self.screen_name
-                self.screen_name = "howto"
-
-        elif action == "close_howto":
-            self.screen_name = self._howto_return
 
         elif action == "close_bot_select":
             self.screen_name = "menu"
