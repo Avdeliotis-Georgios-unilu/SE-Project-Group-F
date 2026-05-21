@@ -1,4 +1,4 @@
-"""Bot Packaging"""
-from .bot import StrategicBot, RandomBot
+#Bot package
+from .game_bot import pick_bot_move, judge
 
-__all__ = ["StrategicBot", "RandomBot"]
+__all__ = ["pick_bot_move", "judge"]
