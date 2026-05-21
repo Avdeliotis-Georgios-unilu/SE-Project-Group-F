@@ -1,14 +1,8 @@
-"""Camera capture + per-frame gesture detection.
-
-Owns the cv2 device lifecycle so the game engine never touches OpenCV
-directly. Behaviour is identical to the old SmartRPSGame._init_camera /
-._read_camera methods it replaces.
-"""
 from __future__ import annotations
 
 import cv2
 
-from .hand_gestures import detect_gesture
+from camera.hand_gestures import detect_gesture
 
 
 class CameraFeed:
