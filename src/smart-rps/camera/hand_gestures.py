@@ -1,20 +1,8 @@
-"""
-Hand gesture detection for Rock-Paper-Scissors.
-
-Tries the MediaPipe Tasks API first (newer mediapipe >= 0.10.30).
-Falls back to a simple OpenCV contour-based heuristic if MediaPipe is
-unavailable or fails to initialise.
-
-Returns the same (gesture_name, annotated_image) tuple regardless of
-which backend is active so callers don't need to care.
-"""
-
 from __future__ import annotations
 
 import os
 import cv2
 import numpy as np
-
 
 _USE_MEDIAPIPE = False
 _hand_landmarker = None
@@ -26,7 +14,7 @@ _ROI_Y1 = _CAM_H // 2 - _ROI_SIDE // 2   # 90
 _ROI_X2 = _ROI_X1 + _ROI_SIDE             # 470
 _ROI_Y2 = _ROI_Y1 + _ROI_SIDE             # 390
 
-# Normalised fractions — import these in screens.py for the pygame overlay
+# Normalised fractions; import these in screens.py for the pygame overlay.
 ROI_NX1: float = _ROI_X1 / _CAM_W   # ≈ 0.266
 ROI_NY1: float = _ROI_Y1 / _CAM_H   # = 0.1875
 ROI_NX2: float = _ROI_X2 / _CAM_W   # ≈ 0.734
@@ -41,9 +29,11 @@ def _init_mediapipe() -> bool:
         return True
 
     try:
+        import mediapipe as mp
         from mediapipe.tasks import python as mp_tasks
         from mediapipe.tasks.python import vision as mp_vision
 
+        # MediaPipe bundles a hand landmarker model 
         model_candidates = []
         try:
             import mediapipe.tasks.vision as _mv
@@ -54,7 +44,7 @@ def _init_mediapipe() -> bool:
         except Exception:
             pass
 
-        # Also check pip install location
+        # also check pip install location
         import site
         for sp in site.getsitepackages():
             cand = os.path.join(sp, "mediapipe", "tasks", "vision",
@@ -63,7 +53,7 @@ def _init_mediapipe() -> bool:
                 model_candidates.append(cand)
 
         if not model_candidates:
-            # Download the model if not found
+            # download the model if not found
             import urllib.request
             model_dir = os.path.join(os.path.dirname(__file__), "..", "data")
             os.makedirs(model_dir, exist_ok=True)
@@ -109,17 +99,17 @@ def _mediapipe_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
     image = cv2.flip(frame, 1)
     ih, iw = image.shape[:2]
 
+    # clamp ROI to actual frame dimensions )
     sx1 = max(0, min(_ROI_X1, iw - 1))
     sy1 = max(0, min(_ROI_Y1, ih - 1))
     sx2 = max(sx1 + 1, min(_ROI_X2, iw))
     sy2 = max(sy1 + 1, min(_ROI_Y2, ih))
 
+    # run MediaPipe on the ROI crop only
     roi_crop = image[sy1:sy2, sx1:sx2]
     rh, rw = roi_crop.shape[:2]
     rgb_crop = cv2.cvtColor(roi_crop, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_crop)
-    if _hand_landmarker is None:
-        return "No hand", image
     result = _hand_landmarker.detect(mp_image)
 
     gesture_name = "No hand"
@@ -134,7 +124,7 @@ def _mediapipe_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
             (5, 9), (9, 13), (13, 17),
         ]
         for landmarks in result.hand_landmarks:
-            # Remap landmark coords from crop space -> full frame space
+            
             def _fpt(lm):
                 return (sx1 + int(lm.x * rw), sy1 + int(lm.y * rh))
 
@@ -144,7 +134,7 @@ def _mediapipe_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
                 cv2.line(image, _fpt(landmarks[c[0]]), _fpt(landmarks[c[1]]),
                          (61, 255, 142), 1)
 
-            # gesture classification (finger-tip vs PIP joint y-position)
+            # gesture classification 
             index_up  = landmarks[8].y  < landmarks[6].y
             middle_up = landmarks[12].y < landmarks[10].y
             ring_up   = landmarks[16].y < landmarks[14].y
@@ -164,8 +154,8 @@ def _mediapipe_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
     return gesture_name, image
 
 
-
 def _opencv_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
+    
     image = cv2.flip(frame, 1)
     ih, iw = image.shape[:2]
 
@@ -174,11 +164,11 @@ def _opencv_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
     sx2 = max(sx1 + 1, min(_ROI_X2, iw))
     sy2 = max(sy1 + 1, min(_ROI_Y2, ih))
 
-    # Crop to ROI for detection
+    # crop to ROI for detection
     roi = image[sy1:sy2, sx1:sx2]
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-    # Skin colour range (broad)
+    # skin colour range
     lower = np.array([0, 20, 70], dtype=np.uint8)
     upper = np.array([20, 255, 255], dtype=np.uint8)
     mask = cv2.inRange(hsv, lower, upper)
@@ -196,8 +186,8 @@ def _opencv_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
         largest = max(contours, key=cv2.contourArea)
         area = cv2.contourArea(largest)
 
-        if area > 3000:  # Minimum hand size
-            
+        if area > 3000:  # minimum  hand size
+           
             hull = cv2.convexHull(largest, returnPoints=False)
             if len(hull) > 3:
                 try:
@@ -209,9 +199,9 @@ def _opencv_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
                 if defects is not None and len(defects) > 0:
                     for i in range(defects.shape[0]):
                         s, e, f, d = defects[i, 0]
-                        if d > 8000:  # Deep enough defect = finger gap
+                        if d > 8000:  
                             finger_count += 1
-                    finger_count += 1  # Compensate
+                    finger_count += 1  
 
                 # Simple heuristic
                 hull_area = cv2.contourArea(cv2.convexHull(largest))
@@ -230,12 +220,17 @@ def _opencv_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
     return gesture_name, image
 
 
+
 _INIT_ATTEMPTED = False
 
 
 def detect_gesture(frame: np.ndarray) -> tuple[str, np.ndarray]:
+    """
+    Detect a Rock / Paper / Scissors gesture in *frame* (BGR numpy array).
 
-   # Detect a Rock / Paper / Scissors gesture 
+    Returns (gesture_name, annotated_image) where gesture_name is one of
+    ``"Rock"``, ``"Paper"``, ``"Scissors"``, ``"No hand"``, ``"Unknown"``.
+    """
     global _INIT_ATTEMPTED, _USE_MEDIAPIPE
 
     if not _INIT_ATTEMPTED:
