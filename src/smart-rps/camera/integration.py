@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import cv2
 
-from .hand_gestures import detect_gesture
+from camera.hand_gestures import detect_gesture
 
 
 class CameraFeed:
