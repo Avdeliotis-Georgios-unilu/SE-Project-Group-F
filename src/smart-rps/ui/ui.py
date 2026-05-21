@@ -1,3 +1,10 @@
+"""RPS Arena — entry point.
+
+Bootstraps sys.path so the package modules import cleanly, then runs
+the game. Usage:
+
+    python ui/ui.py
+"""
 from __future__ import annotations
 
 import os
