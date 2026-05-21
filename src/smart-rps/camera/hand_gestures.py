@@ -41,12 +41,9 @@ def _init_mediapipe() -> bool:
         return True
 
     try:
-        import mediapipe as mp
         from mediapipe.tasks import python as mp_tasks
         from mediapipe.tasks.python import vision as mp_vision
 
-        # MediaPipe bundles a hand landmarker model; look for it in the
-        # package install path first, then in a few common places
         model_candidates = []
         try:
             import mediapipe.tasks.vision as _mv
@@ -121,6 +118,8 @@ def _mediapipe_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
     rh, rw = roi_crop.shape[:2]
     rgb_crop = cv2.cvtColor(roi_crop, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_crop)
+    if _hand_landmarker is None:
+        return "No hand", image
     result = _hand_landmarker.detect(mp_image)
 
     gesture_name = "No hand"
