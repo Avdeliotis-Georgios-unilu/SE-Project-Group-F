@@ -33,10 +33,10 @@ def pick_bot_move(difficulty: str, history: list[dict]) -> str:
 def judge(player_move: str, bot_move: str) -> str:
     #Return win/lose/tie
     if player_move == bot_move:
-        return #tie
+        return "tie"
     if BEATS[player_move] == bot_move:
-        return #lose
-    return #win
+        return "lose"
+    return "win"
 
 
 def update_bot_history(player_move: str, outcome: str) -> None:
