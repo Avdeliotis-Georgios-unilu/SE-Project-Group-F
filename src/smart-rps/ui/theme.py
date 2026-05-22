@@ -1,4 +1,3 @@
-"""Single colour theme — Cave."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -30,5 +29,4 @@ THEME = Theme(
     bot_accent=(255, 122, 58), player_accent=(61, 255, 142),
 )
 
-# Kept for any legacy import that still uses THEMES["cave"]
 THEMES: dict[str, Theme] = {"cave": THEME}

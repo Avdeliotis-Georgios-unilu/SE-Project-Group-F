@@ -1,4 +1,3 @@
-"""Sprite/pixel-art data, item images, and the pixel-art blitter."""
 from __future__ import annotations
 
 import os
@@ -177,7 +176,6 @@ BOT_PORTRAITS = {
 def draw_pixel_art(surf: pygame.Surface, pos: tuple[int, int],
                    data: list[str], palette: dict[str, tuple[int, int, int]],
                    scale: int = 4) -> tuple[int, int]:
-    """Draw pixel art from string-grid data. Returns (width, height) in pixels."""
     h = len(data)
     w = len(data[0]) if data else 0
     for y in range(h):
@@ -198,7 +196,6 @@ _ITEM_IMAGES: dict[str, pygame.Surface] = {}
 _ITEM_IMAGE_SIZE = (220, 220)
 
 def _load_item_images() -> dict[str, pygame.Surface]:
-    """Load and cache the Minecraft item PNGs. Called once at startup."""
     global _ITEM_IMAGES
     if _ITEM_IMAGES:
         return _ITEM_IMAGES
@@ -218,7 +215,6 @@ def _load_item_images() -> dict[str, pygame.Surface]:
 
 
 def get_item_image(move: str, size: tuple[int, int] | None = None) -> pygame.Surface:
-    """Return the asset image for a move, optionally scaled."""
     imgs = _load_item_images()
     img = imgs.get(move)
     if img is None:

@@ -1,4 +1,5 @@
-"""SmartRPSGame — state machine, round flow, and main loop."""
+# SmartRPSGame:
+# state machine, round flow, and main loop
 from __future__ import annotations
 
 from typing import Any, Optional
@@ -17,14 +18,8 @@ from ui.screens import (_screen_menu, _screen_bot_select,
 
 
 class SmartRPSGame:
-    """Complete game state machine and main loop."""
-
     def __init__(self) -> None:
         pygame.init()
-        # pygame.SCALED scales the logical 1280×800 surface to fit the
-        # user's display and translates mouse events to logical coordinates.
-        # Falls back to a regular window if the hardware renderer is absent
-        # (headless environments, older GPU drivers, etc.).
         try:
             self.screen = pygame.display.set_mode(
                 (WINDOW_W, WINDOW_H), pygame.SCALED)
@@ -34,8 +29,8 @@ class SmartRPSGame:
         self.clock = pygame.time.Clock()
 
         # Game state
-        self.screen_name: str = "menu"  # menu | botselect | playing | gameover
-        self.phase: str = "idle"  # idle | countdown | shoot | reveal
+        self.screen_name: str = "menu"
+        self.phase: str = "idle" 
         self.bot_id: str = "medium"
         self.total_rounds: int = 5
         self.history: list[dict] = []
@@ -46,7 +41,7 @@ class SmartRPSGame:
         self.bot_move: Optional[str] = None
         self.locked: bool = False
 
-        # Fairness commitment
+        # Fairness 
         self.fair_hash: str = ""
         self.fair_seed: int = 0
 
@@ -59,27 +54,20 @@ class SmartRPSGame:
         self.reveal_start: int = 0
         self.reveal_duration: int = 2200
 
-        # Camera (device lifecycle lives in camera/integration.py)
+        # Camera (in integration.py)
         self.camera_feed = CameraFeed()
         self.cam_status: str = self.camera_feed.status
         self.cam_ok: bool = self.camera_feed.ok
-        # Latest camera frame + detected gesture, refreshed by _poll_camera.
-        # Hand detection (MediaPipe, ~10 ms/call) is throttled OFF the
-        # render rate: at most once per _detect_interval_ms. The cached
-        # gesture is still fed to the lock every frame, so lock timing is
-        # unchanged. 0 disables the throttle (used by deterministic tests).
         self._cam_frame = None
         self._cam_gesture: str = "No hand"
         self._detect_interval_ms: int = 33  # ~30 Hz detection
         self._last_detect_ms: int = 0
 
-        # Gesture lock-in — the sole move-input channel during a battle.
+        # Gesture lock-in 
         self.gesture_lock = GestureLock()
 
-        # Tick counter for animations
         self.clock_tick: int = 0
 
-        # Button hover state (reset each frame)
         self._click_zones: list[ClickZone] = []
 
 
@@ -89,15 +77,10 @@ class SmartRPSGame:
 
     @property
     def camera_ready(self) -> bool:
-        """A live camera is mandatory — the battle is gesture-only."""
         return self.cam_ok and self.cam_status == "LIVE"
 
-    # ------------------------------------------------------------------
     # Camera
-    # ------------------------------------------------------------------
-
     def _read_camera(self):
-        """Delegate to the camera feed. Returns (frame, gesture_name)."""
         return self.camera_feed.read()
 
     def _poll_camera(self) -> None:
@@ -116,15 +99,8 @@ class SmartRPSGame:
             if move is not None:
                 self.pick_move(move)
 
-    # ------------------------------------------------------------------
     # Game flow
-    # ------------------------------------------------------------------
-
     def start_match(self) -> None:
-        """Begin a new match. No-op without a camera — the battle is
-        gesture-only, so a match is unplayable without one. The bot-select
-        screen also disables its entry button; this is defense in depth
-        (also guards the game-over 'PLAY AGAIN' path)."""
         if not self.camera_ready:
             return
         self.history = []
@@ -143,7 +119,6 @@ class SmartRPSGame:
         self._start_round()
 
     def _start_round(self) -> None:
-        """Initiate a new round: bot picks, countdown begins."""
         self.player_move = None
         self.bot_move = None
         self.locked = False
@@ -159,7 +134,6 @@ class SmartRPSGame:
         self.countdown_start = pygame.time.get_ticks()
 
     def _handle_countdown(self) -> None:
-        """Progress the countdown sequence."""
         if self.phase != "countdown":
             return
 
@@ -172,9 +146,6 @@ class SmartRPSGame:
                 self.countdown_val = self.countdown_num
                 self.countdown_start = pygame.time.get_ticks()
             else:
-                # SHOOT! — from here the detected hand gesture is the only
-                # way to commit a move. No timer, no random fallback: the
-                # phase stays open until GestureLock locks one in.
                 self.countdown_val = "SHOOT"
                 self.countdown_start = pygame.time.get_ticks()
                 self.phase = "shoot"
@@ -182,7 +153,6 @@ class SmartRPSGame:
                 self.countdown_num = 0
 
     def pick_move(self, move: str) -> None:
-        """Commit the player's move. Sole caller is the gesture lock."""
         if self.phase != "shoot" or self.locked:
             return
         self.locked = True
@@ -191,7 +161,6 @@ class SmartRPSGame:
         pygame.time.set_timer(pygame.USEREVENT + 1, 450, True)
 
     def _resolve_round(self, player_move: str) -> None:
-        """Score the round and show the result."""
         self.player_move = player_move
         self.locked = True
         self.phase = "reveal"
@@ -212,7 +181,6 @@ class SmartRPSGame:
             self.bot_score += 1
 
     def _check_reveal_done(self) -> None:
-        """After reveal, advance to next round or game over."""
         if self.phase != "reveal":
             return
         if pygame.time.get_ticks() - self.reveal_start >= self.reveal_duration:
@@ -224,26 +192,20 @@ class SmartRPSGame:
                 self._start_round()
 
     def quit_to_menu(self) -> None:
-        """Return to main menu."""
         self.screen_name = "menu"
         self.phase = "idle"
         self.fair_hash = ""
         self.fair_seed = 0
         self.cam_ok = self.camera_feed.is_open() and self.camera_feed.ok
 
-    # ------------------------------------------------------------------
     # Main loop
-    # ------------------------------------------------------------------
-
     def run(self) -> None:
-        """Run the game loop."""
         running = True
 
         while running:
             dt = self.clock.tick(FPS)
             self.clock_tick += 1
 
-            # --- Event handling ---
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -259,12 +221,10 @@ class SmartRPSGame:
                     if self.player_move:
                         self._resolve_round(self.player_move)
 
-            # --- Update ---
             self._handle_countdown()
             self._check_reveal_done()
             self._poll_camera()
 
-            # --- Draw ---
             self._click_zones.clear()
             self.screen.fill(self.theme.bg)
 
@@ -285,16 +245,10 @@ class SmartRPSGame:
         self._cleanup()
 
     def _draw_playing_screen(self) -> None:
-        """Draw the playing screen.
-
-        Uses the frame cached by _poll_camera so the device is read at most
-        once per tick.
-        """
         _screen_playing(self.screen, self.theme, self._build_state_dict(),
                         self._click_zones, self._cam_frame, self._cam_gesture)
 
     def _build_state_dict(self) -> dict:
-        """Package current state for render functions."""
         return {
             "screen": self.screen_name,
             "phase": self.phase,
@@ -319,7 +273,6 @@ class SmartRPSGame:
         }
 
     def _handle_keydown(self, event: pygame.event.Event) -> bool:
-        """Handle keyboard input. Returns False if the game should quit."""
         if event.key == pygame.K_ESCAPE:
             if self.screen_name == "playing":
                 self.quit_to_menu()
@@ -327,9 +280,6 @@ class SmartRPSGame:
                 self.screen_name = "menu"
             return True
 
-        # Menu screen: any key -> bot select (menu navigation only; not a
-        # battle interaction). During a battle there is intentionally NO
-        # keyboard move input — the hand gesture is the only way to play.
         if self.screen_name == "menu":
             self.screen_name = "botselect"
             return True
@@ -337,15 +287,13 @@ class SmartRPSGame:
         return True
 
     def _handle_click(self, pos: tuple[int, int]) -> None:
-        """Handle mouse clicks via click zones."""
-        # Check zones in reverse (last drawn = on top)
+        # Check zones in reverse 
         for zone in reversed(self._click_zones):
             if zone.rect.collidepoint(pos):
                 self._dispatch_click(zone.action, zone.data)
                 return
 
     def _dispatch_click(self, action: str, data: Any) -> None:
-        """Execute the action associated with a click zone."""
         if action == "start":
             self.screen_name = "botselect"
 
@@ -368,6 +316,5 @@ class SmartRPSGame:
             self.start_match()
 
     def _cleanup(self) -> None:
-        """Release resources."""
         self.camera_feed.release()
         pygame.quit()
