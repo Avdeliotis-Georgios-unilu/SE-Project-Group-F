@@ -1,4 +1,3 @@
-"""Screen and HUD renderers. Pure functions over a state dict."""
 from __future__ import annotations
 
 import cv2
@@ -22,37 +21,33 @@ from ui.widgets import (display_font, body_font, _blend,
 
 def _screen_menu(surf: pygame.Surface, theme: Theme,
                  click_zones: list[ClickZone]) -> None:
-    """Render the main menu screen."""
+    # main menu screen
     surf.fill(theme.bg)
 
     cx = WINDOW_W // 2
 
-    # Decorative accent line at top
     accent_y = 140
     pygame.draw.line(surf, theme.accent, (cx - 180, accent_y), (cx + 180, accent_y), 2)
     dot_r = 4
     pygame.draw.circle(surf, theme.accent, (cx - 180, accent_y), dot_r)
     pygame.draw.circle(surf, theme.accent, (cx + 180, accent_y), dot_r)
 
-    # Pre-title
+    # fonts, buttons, layout
     pre_font = display_font(12)
     pre_title = pre_font.render("CAMERA-GESTURE ARCADE", True, theme.dim)
     pre_h = pre_title.get_height()
 
-    # Main title — large, dramatic
     title_font = display_font(68)
     rps = title_font.render("RPS", True, theme.ink)
     arena = title_font.render("ARENA", True, theme.accent)
     title_h = rps.get_height()
     total_title_w = rps.get_width() + arena.get_width()
 
-    # Subtitle
     sub_font = body_font(20)
     sub1 = sub_font.render("Three moves. One bot trained on thousands of human matches.", True, theme.dim)
     sub2 = sub_font.render("Can you out-bluff the machine?", True, theme.dim)
     sub_h = sub1.get_height()
 
-    # Buttons
     btn_w, btn_h = 380, 62
 
     # Vertical layout
@@ -89,7 +84,6 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
                         selected_bot: str, selected_rounds: int,
                         click_zones: list[ClickZone],
                         cam_ready: bool = True) -> None:
-    """Render the bot selection modal."""
     dim_bg = pygame.Surface((WINDOW_W, WINDOW_H), pygame.SRCALPHA)
     dim_bg.fill((0, 0, 0, 190))
     surf.blit(dim_bg, (0, 0))
@@ -101,7 +95,7 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
     draw_panel(surf, card_rect, theme)
     pygame.draw.rect(surf, theme.line2, card_rect, 2)
 
-    # Header with decorative accent line
+    # Header 
     kicker = display_font(11).render("CONFIGURE MATCH", True, theme.dim)
     surf.blit(kicker, (card_x + 40, card_y + 28))
     title = display_font(24).render("PICK YOUR OPPONENT", True, theme.ink)
@@ -114,7 +108,7 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
                 hover=close_rect.collidepoint(pygame.mouse.get_pos()))
     click_zones.append(ClickZone(close_rect, "close_bot_select"))
 
-    # Bot cards — each with its own accent color
+    # Bot cards 
     bot_ids = ["easy", "medium", "hard"]
     card_padding = 18
     card_item_w = (card_w - 80 - card_padding * 2) // 3
@@ -143,11 +137,10 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
         pygame.draw.rect(surf, card_bg, bot_rect)
         pygame.draw.rect(surf, card_border, bot_rect, 2)
 
-        # Top accent bar (full width, thicker when selected)
+        # Top accent bar 
         top_bar_h = 4 if not is_selected else 8
         pygame.draw.rect(surf, bot_accent, (bx + 1, by + 1, card_item_w - 2, top_bar_h))
 
-        # Number badge
         num_str = ["I", "II", "III"][i]
         num_font = display_font(28)
         num_surf = num_font.render(num_str, True, bot_accent if active else theme.dim)
@@ -179,14 +172,14 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
             surf.blit(line, (bx + 14, dy))
             dy += line.get_height() + 3
 
-        # Selection indicator — accent border glow effect when selected
+        # Selection indicator, with glow effect
         if is_selected:
             glow_rect = bot_rect.inflate(6, 6)
             pygame.draw.rect(surf, bot_accent, glow_rect, 2)
 
         click_zones.append(ClickZone(bot_rect, "select_bot", bid))
 
-    # Rounds selector
+    # Rounds 
     rounds_y = grid_y + card_item_h + 8
     rounds_label = display_font(11).render("MATCH LENGTH . BEST OF", True, theme.dim)
     surf.blit(rounds_label, (card_x + 40, rounds_y))
@@ -246,40 +239,35 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
 def _screen_playing(surf: pygame.Surface, theme: Theme, state: dict,
                     click_zones: list[ClickZone], camera_frame=None,
                     gesture_name: str = "No hand") -> None:
-    """Render the main game screen with all sub-components."""
 
-    # --- Top bar ---
     _draw_top_bar(surf, theme, state, click_zones)
 
-    # --- Stage (split view) ---
     stage_y = TOP_BAR_H
     bot_w = WINDOW_W - PLAYER_W  # 512 px at 1280 wide
 
-    # Player side (left, wider — camera gets the most space)
+    # Player side 
     player_rect = pygame.Rect(0, stage_y, PLAYER_W, STAGE_H)
     _draw_player_side(surf, theme, state, player_rect, click_zones,
                       camera_frame, gesture_name)
 
-    # Bot side (right, narrower)
+    # Bot side
     bot_rect = pygame.Rect(PLAYER_W, stage_y, bot_w, STAGE_H)
     _draw_bot_side(surf, theme, state, bot_rect)
 
-    # VS rail and token
+    # VS 
     _draw_vs_rail(surf, theme, stage_y, STAGE_H, state)
 
-    # Countdown overlay
+    # Countdown 
     _draw_countdown(surf, theme, state)
 
-    # Result banner
+    # Result
     _draw_result_banner(surf, theme, state)
 
-    # --- Bottom HUD ---
     _draw_bottom_hud(surf, theme, state)
 
 
 def _draw_top_bar(surf: pygame.Surface, theme: Theme, state: dict,
                   click_zones: list[ClickZone]) -> None:
-    """Top bar: brand, gesture link chip, opponent info, round, buttons."""
     bar_rect = pygame.Rect(0, 0, WINDOW_W, TOP_BAR_H)
     pygame.draw.rect(surf, theme.bg1, bar_rect)
     pygame.draw.line(surf, theme.line, (0, TOP_BAR_H - 1), (WINDOW_W, TOP_BAR_H - 1))
@@ -338,7 +326,6 @@ def _draw_top_bar(surf: pygame.Surface, theme: Theme, state: dict,
 def _draw_gesture_zone(surf: pygame.Surface, roi: pygame.Rect, theme: Theme,
                        gesture_held: str | None, locked: bool,
                        progress: float) -> None:
-    """Simple corner brackets + label for the gesture detection ROI."""
     if locked:
         corner_col = theme.accent
         label_text = "LOCKED IN"
@@ -358,7 +345,6 @@ def _draw_gesture_zone(surf: pygame.Surface, roi: pygame.Rect, theme: Theme,
         label_bg = (0, 0, 0, 180)
         label_border = _blend(theme.line2, theme.dim, 0.3)
 
-    # Corner L-brackets
     arm, bw = 40, 2
     pip = 4
     for cx, cy, sx, sy in [
@@ -391,7 +377,6 @@ def _draw_gesture_zone(surf: pygame.Surface, roi: pygame.Rect, theme: Theme,
 def _draw_player_side(surf: pygame.Surface, theme: Theme, state: dict,
                       rect: pygame.Rect, click_zones: list[ClickZone],
                       camera_frame, gesture_name: str) -> None:
-    """Player viewport with camera feed, HUD overlay, and picker."""
     header_h = 50
 
     pygame.draw.rect(surf, theme.player_accent,
@@ -436,7 +421,6 @@ def _draw_player_side(surf: pygame.Surface, theme: Theme, state: dict,
         float(state.get("gesture_progress", 0.0)),
     )
 
-    # Detection stamp (top-right of viewport)
     _draw_detection_stamp(surf, theme, vp_rect, state)
 
     phase = state.get("phase", "idle")
@@ -446,7 +430,6 @@ def _draw_player_side(surf: pygame.Surface, theme: Theme, state: dict,
 
 def _draw_no_cam(surf: pygame.Surface, rect: pygame.Rect, theme: Theme,
                  cam_status: str) -> None:
-    """Placeholder shown when no camera feed is available."""
     surf.fill((8, 8, 8), rect)
 
     msgs: list[str]
@@ -469,7 +452,6 @@ def _draw_no_cam(surf: pygame.Surface, rect: pygame.Rect, theme: Theme,
 
 def _draw_detection_stamp(surf: pygame.Surface, theme: Theme,
                           vp_rect: pygame.Rect, state: dict) -> None:
-    """Detection status stamp in the top-right of the player viewport."""
     locked = state.get("locked", False)
     locked_move = state.get("player_move")
     if locked and locked_move:
@@ -499,12 +481,6 @@ def _draw_detection_stamp(surf: pygame.Surface, theme: Theme,
 
 def _draw_picker(surf: pygame.Surface, theme: Theme, vp_rect: pygame.Rect,
                  state: dict) -> None:
-    """Compact gesture indicator at the TOP of the player viewport.
-
-    NON-interactive by design: there are no click zones and no key hints.
-    The move is committed only by holding a hand gesture (see GestureLock).
-    Sits in a narrow strip so the camera feed is fully visible below.
-    """
     chip_w, chip_h = 124, 42
     gap = 14
     total_w = chip_w * 3 + gap * 2
@@ -517,7 +493,7 @@ def _draw_picker(surf: pygame.Surface, theme: Theme, vp_rect: pygame.Rect,
     progress = float(state.get("gesture_progress", 0.0))
     active_move = locked_move if locked else held_move
 
-    # Semi-transparent background strip
+    #  background strip
     pad = 10
     bg_h = chip_h + 5 + 10  # chips + progress bar gap + bar height
     hint_h = 16
@@ -545,7 +521,6 @@ def _draw_picker(surf: pygame.Surface, theme: Theme, vp_rect: pygame.Rect,
         label_surf = display_font(11).render(label, True, label_col)
         surf.blit(label_surf, label_surf.get_rect(center=chip_rect.center))
 
-    # Progress bar — thin, full width under chips
     bar_y = strip_y + chip_h + 5
     bar_h = 4
     pygame.draw.rect(surf, theme.bg2, (strip_x, bar_y, total_w, bar_h))
@@ -554,7 +529,6 @@ def _draw_picker(surf: pygame.Surface, theme: Theme, vp_rect: pygame.Rect,
         bar_col = theme.accent if not locked else _blend(theme.accent, (255, 255, 255), 0.3)
         pygame.draw.rect(surf, bar_col, (strip_x, bar_y, fill, bar_h))
 
-    # Hint text
     if locked:
         hint, hint_col = "LOCKED", theme.accent
     elif held_move:
@@ -568,7 +542,6 @@ def _draw_picker(surf: pygame.Surface, theme: Theme, vp_rect: pygame.Rect,
 
 def _draw_bot_side(surf: pygame.Surface, theme: Theme, state: dict,
                    rect: pygame.Rect) -> None:
-    """Bot viewport with character, stats, and move display."""
     bot_id = state.get("bot_id", "medium")
     bot = BOT_PORTRAITS.get(bot_id, BOT_PORTRAITS["medium"])
     difficulty = state.get("bot_id", "medium")
@@ -639,7 +612,6 @@ def _draw_bot_side(surf: pygame.Surface, theme: Theme, state: dict,
 
 def _draw_vs_rail(surf: pygame.Surface, theme: Theme, stage_y: int,
                   stage_h: int, state: dict) -> None:
-    """Vertical divider line + VS token at the player/bot boundary."""
     cx = PLAYER_W
     # Rail line
     pygame.draw.line(surf, theme.line, (cx, stage_y), (cx, stage_y + stage_h), 1)
@@ -661,7 +633,6 @@ def _draw_vs_rail(surf: pygame.Surface, theme: Theme, stage_y: int,
 
 
 def _draw_countdown(surf: pygame.Surface, theme: Theme, state: dict) -> None:
-    """Full-screen countdown overlay."""
     phase = state.get("phase", "idle")
     countdown_val = state.get("countdown")
     countdown_start = state.get("countdown_start", 0)
@@ -708,7 +679,6 @@ def _draw_countdown(surf: pygame.Surface, theme: Theme, state: dict) -> None:
 
 
 def _draw_result_banner(surf: pygame.Surface, theme: Theme, state: dict) -> None:
-    """Result banner after a round is resolved."""
     phase = state.get("phase")
     if phase != "reveal":
         return
@@ -763,7 +733,6 @@ def _draw_result_banner(surf: pygame.Surface, theme: Theme, state: dict) -> None
 
 
 def _draw_bottom_hud(surf: pygame.Surface, theme: Theme, state: dict) -> None:
-    """Bottom bar: player score, round pips, bot score."""
     hud_y = WINDOW_H - BOTTOM_HUD_H
     hud_rect = pygame.Rect(0, hud_y, WINDOW_W, BOTTOM_HUD_H)
     pygame.draw.rect(surf, theme.bg1, hud_rect)
@@ -832,7 +801,6 @@ def _draw_bottom_hud(surf: pygame.Surface, theme: Theme, state: dict) -> None:
 
 def _screen_gameover(surf: pygame.Surface, theme: Theme, state: dict,
                      click_zones: list[ClickZone]) -> None:
-    """Render the game over / final results screen."""
     surf.fill(theme.bg)
 
     player_score = state.get("player_score", 0)
@@ -867,11 +835,11 @@ def _screen_gameover(surf: pygame.Surface, theme: Theme, state: dict,
     verdict_surf = display_font(13).render("FINAL VERDICT", True, theme.dim)
     surf.blit(verdict_surf, verdict_surf.get_rect(center=(WINDOW_W // 2, card_y + 44)))
 
-    # Title — given room by moving it down from the kicker
+    # Title 
     title_surf = display_font(74).render(verdict, True, title_col)
     surf.blit(title_surf, title_surf.get_rect(center=(WINDOW_W // 2, card_y + 120)))
 
-    # Final scores — pushed down to clear the title
+    # Final scores
     score_y = card_y + 210
     you_label = display_font(13).render("YOU", True, theme.dim)
     surf.blit(you_label, you_label.get_rect(center=(WINDOW_W // 2 - 100, score_y)))

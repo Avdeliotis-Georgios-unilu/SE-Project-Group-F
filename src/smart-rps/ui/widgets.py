@@ -1,4 +1,3 @@
-"""Reusable rendering primitives: fonts, panels, buttons, chips."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -13,7 +12,6 @@ _FONT_CACHE: dict[tuple[str, int, bool], pygame.font.Font] = {}
 
 
 def _get_font(name_hint: str, size: int, bold: bool = False) -> pygame.font.Font:
-    """Cached font loader. Tries the hinted name, falls back to system monospace."""
     key = (name_hint, size, bold)
     if key in _FONT_CACHE:
         return _FONT_CACHE[key]
@@ -38,17 +36,14 @@ def _get_font(name_hint: str, size: int, bold: bool = False) -> pygame.font.Font
 
 
 def display_font(size: int) -> pygame.font.Font:
-    """Bold monospace for headings."""
     return _get_font("dejavusansmono", size, bold=True)
 
 
 def body_font(size: int) -> pygame.font.Font:
-    """Monospace for body text."""
     return _get_font("dejavusansmono", size, bold=False)
 
 
 def _blend(c1: tuple[int, int, int], c2: tuple[int, int, int], t: float) -> tuple[int, int, int]:
-    """Linear blend between two colours."""
     return (
         int(c1[0] + (c2[0] - c1[0]) * t),
         int(c1[1] + (c2[1] - c1[1]) * t),
@@ -57,7 +52,6 @@ def _blend(c1: tuple[int, int, int], c2: tuple[int, int, int], t: float) -> tupl
 
 
 def draw_panel(surf: pygame.Surface, rect: pygame.Rect, theme: Theme) -> None:
-    """Draw a themed panel with border."""
     pygame.draw.rect(surf, theme.panel, rect)
     pygame.draw.rect(surf, theme.line, rect, 1)
 
@@ -66,7 +60,6 @@ def draw_button(surf: pygame.Surface, rect: pygame.Rect, text: str,
                 theme: Theme, font_size: int = 12, primary: bool = False,
                 danger: bool = False, hover: bool = False,
                 font: pygame.font.Font | None = None) -> None:
-    """Draw a pixel-style button."""
     if font is None:
         font = display_font(font_size)
 
@@ -99,7 +92,6 @@ def draw_button(surf: pygame.Surface, rect: pygame.Rect, text: str,
 
 def draw_chip(surf: pygame.Surface, pos: tuple[int, int], text: str,
               theme: Theme, dot_colour=None) -> pygame.Rect:
-    """Draw a small chip/badge. Returns its bounding rect."""
     font = display_font(9)
     text_surf = font.render(text, True, theme.dim)
     padding = 10
@@ -133,7 +125,6 @@ class ClickZone:
 
 def _wrap_text(text: str, font: pygame.font.Font, max_width: int,
                colour: tuple[int, int, int] | None = None) -> list[pygame.Surface]:
-    """Simple word-wrap returning list of pre-rendered surfaces."""
     if colour is None:
         colour = (255, 255, 255)
     words = text.split()
