@@ -82,7 +82,7 @@ BOT_PORTRAITS = {
     "easy": {
         "data": BOT_EASY_DATA, "palette": BOT_EASY_PAL,
         "name": "Random", "lvl": "BEGINNER",
-        "desc": "Picks randomly R/P/S. No strategy, no learning",
+        "desc": "Picks randomly R/P/S No strategy, no learning",
         "accent": (90, 200, 90),
     },
     "medium": {
