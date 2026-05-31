@@ -29,14 +29,14 @@ def _init_mediapipe() -> bool:
         return True
 
     try:
-        import mediapipe as mp
-        from mediapipe.tasks import python as mp_tasks
-        from mediapipe.tasks.python import vision as mp_vision
+        import mediapipe as mp  # type: ignore  # noqa: F401
+        from mediapipe.tasks import python as mp_tasks  # type: ignore  # noqa: F401
+        from mediapipe.tasks.python import vision as mp_vision  # type: ignore
 
         # MediaPipe bundles a hand landmarker model 
         model_candidates = []
         try:
-            import mediapipe.tasks.vision as _mv
+            import mediapipe.tasks.vision as _mv  # type: ignore
             pkg_dir = os.path.dirname(_mv.__file__)
             bundled = os.path.join(pkg_dir, "hand_landmarker.task")
             if os.path.exists(bundled):
@@ -93,8 +93,11 @@ def _init_mediapipe() -> bool:
 
 
 def _mediapipe_detect(frame: np.ndarray) -> tuple[str, np.ndarray]:
+    """Detect gesture using MediaPipe HandLandmarker."""
+    if _hand_landmarker is None:
+        return "No hand", frame
     
-    import mediapipe as mp
+    import mediapipe as mp  # type: ignore  # noqa: F401 (used in mp_image creation)
 
     image = cv2.flip(frame, 1)
     ih, iw = image.shape[:2]
