@@ -46,7 +46,7 @@ class SmartRPSGame:
         self.fair_seed: int = 0
 
         # Countdown
-        self.countdown_val = None
+        self.countdown_val: int | str | None = None
         self.countdown_start: int = 0
         self.countdown_num: int = 3
 
@@ -166,6 +166,8 @@ class SmartRPSGame:
         self.phase = "reveal"
         self.reveal_start = pygame.time.get_ticks()
 
+        if self.bot_move is None:
+            return
         outcome = judge(player_move, self.bot_move)
         self.history.append({
             "player": player_move,
@@ -203,7 +205,7 @@ class SmartRPSGame:
         running = True
 
         while running:
-            dt = self.clock.tick(FPS)
+            self.clock.tick(FPS)
             self.clock_tick += 1
 
             for event in pygame.event.get():
