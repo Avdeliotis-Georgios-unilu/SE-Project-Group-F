@@ -246,7 +246,7 @@ class SmartRPSGame:
 
     def _draw_playing_screen(self) -> None:
         _screen_playing(self.screen, self.theme, self._build_state_dict(),
-                        self._click_zones, self._cam_frame, self._cam_gesture)
+                        self._click_zones, self._cam_frame)
 
     def _build_state_dict(self) -> dict:
         return {

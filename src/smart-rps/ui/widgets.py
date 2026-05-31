@@ -7,41 +7,20 @@ import pygame
 
 from ui.theme import Theme
 
+_FONT_CACHE: dict[tuple[int, bool], pygame.font.Font] = {}
 
-_FONT_CACHE: dict[tuple[str, int, bool], pygame.font.Font] = {}
-
-
-def _get_font(name_hint: str, size: int, bold: bool = False) -> pygame.font.Font:
-    key = (name_hint, size, bold)
-    if key in _FONT_CACHE:
-        return _FONT_CACHE[key]
-
-    candidates = [name_hint, "dejavusansmono", "freemono", "couriernew",
-                  "liberationmono", "ubuntumono", "notomono", "monospace", None]
-    font = None
-    for c in candidates:
-        try:
-            font = pygame.font.SysFont(c, size, bold=bold)
-            test = font.render("W", True, (255, 255, 255))
-            if test.get_height() >= size * 0.6:
-                break
-        except Exception:
-            continue
-
-    if font is None:
-        font = pygame.font.Font(None, size)
-
-    _FONT_CACHE[key] = font
-    return font
-
+def _get_font(size: int, bold: bool = False) -> pygame.font.Font:
+    key = (size, bold)
+    if key not in _FONT_CACHE:
+        _FONT_CACHE[key] = pygame.font.SysFont("dejavusansmono", size, bold=bold)
+    return _FONT_CACHE[key]
 
 def display_font(size: int) -> pygame.font.Font:
-    return _get_font("dejavusansmono", size, bold=True)
+    return _get_font(size, bold=True)
 
 
 def body_font(size: int) -> pygame.font.Font:
-    return _get_font("dejavusansmono", size, bold=False)
-
+    return _get_font(size, bold=False)
 
 def _blend(c1: tuple[int, int, int], c2: tuple[int, int, int], t: float) -> tuple[int, int, int]:
     return (
@@ -50,18 +29,14 @@ def _blend(c1: tuple[int, int, int], c2: tuple[int, int, int], t: float) -> tupl
         int(c1[2] + (c2[2] - c1[2]) * t),
     )
 
-
 def draw_panel(surf: pygame.Surface, rect: pygame.Rect, theme: Theme) -> None:
     pygame.draw.rect(surf, theme.panel, rect)
     pygame.draw.rect(surf, theme.line, rect, 1)
 
-
 def draw_button(surf: pygame.Surface, rect: pygame.Rect, text: str,
                 theme: Theme, font_size: int = 12, primary: bool = False,
-                danger: bool = False, hover: bool = False,
-                font: pygame.font.Font | None = None) -> None:
-    if font is None:
-        font = display_font(font_size)
+                danger: bool = False, hover: bool = False) -> None:
+    font = display_font(font_size)
 
     if primary:
         bg = theme.accent
@@ -89,39 +64,11 @@ def draw_button(surf: pygame.Surface, rect: pygame.Rect, text: str,
     text_rect = text_surf.get_rect(center=rect.center)
     surf.blit(text_surf, text_rect)
 
-
-def draw_chip(surf: pygame.Surface, pos: tuple[int, int], text: str,
-              theme: Theme, dot_colour=None) -> pygame.Rect:
-    font = display_font(9)
-    text_surf = font.render(text, True, theme.dim)
-    padding = 10
-    dot_w = 8 if dot_colour else 0
-    gap = 8 if dot_w else 0
-    w = dot_w + gap + text_surf.get_width() + padding * 2
-    h = text_surf.get_height() + 12
-    rect = pygame.Rect(pos[0], pos[1], w, h)
-
-    pygame.draw.rect(surf, theme.bg1, rect)
-    pygame.draw.rect(surf, theme.line2, rect, 1)
-
-    if dot_colour:
-        dot_x = pos[0] + padding
-        dot_y = pos[1] + h // 2 - 4
-        pygame.draw.rect(surf, dot_colour, (dot_x, dot_y, 8, 8))
-        text_x = dot_x + 8 + gap
-    else:
-        text_x = pos[0] + padding
-
-    surf.blit(text_surf, (text_x, pos[1] + 6))
-    return rect
-
-
 @dataclass
 class ClickZone:
     rect: pygame.Rect
     action: str
     data: Any = None
-
 
 def _wrap_text(text: str, font: pygame.font.Font, max_width: int,
                colour: tuple[int, int, int] | None = None) -> list[pygame.Surface]:

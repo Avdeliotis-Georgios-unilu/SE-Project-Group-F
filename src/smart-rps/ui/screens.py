@@ -12,8 +12,7 @@ try:
     from camera.hand_gestures import ROI_NX1, ROI_NY1, ROI_NX2, ROI_NY2
 except Exception:
     ROI_NX1, ROI_NY1, ROI_NX2, ROI_NY2 = 0.266, 0.1875, 0.734, 0.8125
-from ui.assets import (get_item_image, draw_pixel_art, GESTURE_DATA,
-                       BOT_PORTRAITS, HAND_PALETTE)
+from ui.assets import get_item_image, draw_pixel_art, BOT_PORTRAITS
 from ui.widgets import (display_font, body_font, _blend,
                         draw_panel, draw_button,
                         _wrap_text, ClickZone)
@@ -21,21 +20,14 @@ from ui.widgets import (display_font, body_font, _blend,
 
 def _screen_menu(surf: pygame.Surface, theme: Theme,
                  click_zones: list[ClickZone]) -> None:
-    # main menu screen
     surf.fill(theme.bg)
 
     cx = WINDOW_W // 2
 
     accent_y = 140
     pygame.draw.line(surf, theme.accent, (cx - 180, accent_y), (cx + 180, accent_y), 2)
-    dot_r = 4
-    pygame.draw.circle(surf, theme.accent, (cx - 180, accent_y), dot_r)
-    pygame.draw.circle(surf, theme.accent, (cx + 180, accent_y), dot_r)
-
-    # fonts, buttons, layout
-    pre_font = display_font(12)
-    pre_title = pre_font.render("CAMERA-GESTURE ARCADE", True, theme.dim)
-    pre_h = pre_title.get_height()
+    pygame.draw.circle(surf, theme.accent, (cx - 180, accent_y), 4)
+    pygame.draw.circle(surf, theme.accent, (cx + 180, accent_y), 4)
 
     title_font = display_font(68)
     rps = title_font.render("RPS", True, theme.ink)
@@ -44,26 +36,22 @@ def _screen_menu(surf: pygame.Surface, theme: Theme,
     total_title_w = rps.get_width() + arena.get_width()
 
     sub_font = body_font(20)
-    sub1 = sub_font.render("Three moves. One bot trained on thousands of human matches.", True, theme.dim)
-    sub2 = sub_font.render("Can you out-bluff the machine?", True, theme.dim)
+    sub1 = sub_font.render("Play rock, paper, scissors with your camera.", True, theme.dim)
+    sub2 = sub_font.render("Pick your opponent and try to read the room.", True, theme.dim)
     sub_h = sub1.get_height()
 
     btn_w, btn_h = 380, 62
 
     # Vertical layout
     spacing = 18
-    total_content_h = (pre_h + spacing + title_h + spacing +
-                       sub_h + spacing + sub_h + spacing + 50 + btn_h)
+    total_content_h = title_h + spacing + sub_h + spacing + sub_h + spacing + 50 + btn_h
 
     start_y = (WINDOW_H - total_content_h) // 2 + 40
 
-    surf.blit(pre_title, pre_title.get_rect(center=(cx, start_y + pre_h // 2)))
-    cur_y = start_y + pre_h + spacing
-
     title_x = cx - total_title_w // 2
-    surf.blit(rps, (title_x, cur_y))
-    surf.blit(arena, (title_x + rps.get_width(), cur_y))
-    cur_y += title_h + spacing
+    surf.blit(rps, (title_x, start_y))
+    surf.blit(arena, (title_x + rps.get_width(), start_y))
+    cur_y = start_y + title_h + spacing
 
     surf.blit(sub1, sub1.get_rect(center=(cx, cur_y + sub_h // 2)))
     cur_y += sub_h + spacing
@@ -95,13 +83,10 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
     draw_panel(surf, card_rect, theme)
     pygame.draw.rect(surf, theme.line2, card_rect, 2)
 
-    # Header 
-    kicker = display_font(11).render("CONFIGURE MATCH", True, theme.dim)
-    surf.blit(kicker, (card_x + 40, card_y + 28))
     title = display_font(24).render("PICK YOUR OPPONENT", True, theme.ink)
-    surf.blit(title, (card_x + 40, card_y + 48))
-    pygame.draw.line(surf, theme.accent, (card_x + 40, card_y + 82),
-                     (card_x + card_w - 40, card_y + 82), 1)
+    surf.blit(title, (card_x + 40, card_y + 34))
+    pygame.draw.line(surf, theme.accent, (card_x + 40, card_y + 76),
+                     (card_x + card_w - 40, card_y + 76), 1)
 
     close_rect = pygame.Rect(card_x + card_w - 56, card_y + 22, 38, 38)
     draw_button(surf, close_rect, "X", theme, font_size=11,
@@ -181,7 +166,7 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
 
     # Rounds 
     rounds_y = grid_y + card_item_h + 8
-    rounds_label = display_font(11).render("MATCH LENGTH . BEST OF", True, theme.dim)
+    rounds_label = display_font(11).render("ROUNDS", True, theme.dim)
     surf.blit(rounds_label, (card_x + 40, rounds_y))
 
     round_opts = [3, 5, 10, 20]
@@ -237,8 +222,7 @@ def _screen_bot_select(surf: pygame.Surface, theme: Theme,
 
 
 def _screen_playing(surf: pygame.Surface, theme: Theme, state: dict,
-                    click_zones: list[ClickZone], camera_frame=None,
-                    gesture_name: str = "No hand") -> None:
+                    click_zones: list[ClickZone], camera_frame=None) -> None:
 
     _draw_top_bar(surf, theme, state, click_zones)
 
@@ -247,8 +231,7 @@ def _screen_playing(surf: pygame.Surface, theme: Theme, state: dict,
 
     # Player side 
     player_rect = pygame.Rect(0, stage_y, PLAYER_W, STAGE_H)
-    _draw_player_side(surf, theme, state, player_rect, click_zones,
-                      camera_frame, gesture_name)
+    _draw_player_side(surf, theme, state, player_rect, camera_frame)
 
     # Bot side
     bot_rect = pygame.Rect(PLAYER_W, stage_y, bot_w, STAGE_H)
@@ -375,13 +358,12 @@ def _draw_gesture_zone(surf: pygame.Surface, roi: pygame.Rect, theme: Theme,
 
 
 def _draw_player_side(surf: pygame.Surface, theme: Theme, state: dict,
-                      rect: pygame.Rect, click_zones: list[ClickZone],
-                      camera_frame, gesture_name: str) -> None:
+                      rect: pygame.Rect, camera_frame) -> None:
     header_h = 50
 
     pygame.draw.rect(surf, theme.player_accent,
                      (rect.x + 28, rect.y + 19, 12, 12))
-    who_surf = display_font(13).render("PLAYER . YOU", True, theme.ink)
+    who_surf = display_font(13).render("YOU", True, theme.ink)
     surf.blit(who_surf, (rect.x + 50, rect.y + 16))
 
     vp_margin = 28
@@ -544,24 +526,12 @@ def _draw_bot_side(surf: pygame.Surface, theme: Theme, state: dict,
                    rect: pygame.Rect) -> None:
     bot_id = state.get("bot_id", "medium")
     bot = BOT_PORTRAITS.get(bot_id, BOT_PORTRAITS["medium"])
-    difficulty = state.get("bot_id", "medium")
 
     header_h = 50
     pygame.draw.rect(surf, theme.bot_accent,
                      (rect.x + 28, rect.y + 19, 12, 12))
-    who_surf = display_font(13).render(f"BOT . {bot['name']}", True, theme.ink)
+    who_surf = display_font(13).render(f"BOT: {bot['name']}", True, theme.ink)
     surf.blit(who_surf, (rect.x + 50, rect.y + 16))
-
-    diff_text = f"DIFF . {difficulty.upper()}"
-    diff_font = display_font(11)
-    diff_surf = diff_font.render(diff_text, True, theme.dim)
-    diff_w = diff_surf.get_width() + 28
-    diff_h = diff_surf.get_height() + 12
-    diff_rect = pygame.Rect(rect.right - diff_w - 28, rect.y + 16, diff_w, diff_h)
-    pygame.draw.rect(surf, theme.bg1, diff_rect)
-    pygame.draw.rect(surf, theme.line2, diff_rect, 1)
-    pygame.draw.rect(surf, theme.bot_accent, (diff_rect.x + 8, diff_rect.y + 8, 8, 8))
-    surf.blit(diff_surf, (diff_rect.x + 22, diff_rect.y + 6))
 
     # Dark themed background
     vp_margin = 28
@@ -790,12 +760,21 @@ def _draw_bottom_hud(surf: pygame.Surface, theme: Theme, state: dict) -> None:
     # Color legend below pips
     legend_y = pip_y + pip_size + 8
     legend_font = display_font(10)
-    for label, col, lx in [("YOU", theme.player_accent, pip_start_x),
-                             ("TIE", theme.dim, WINDOW_W // 2 - 16),
-                             ("BOT", theme.bot_accent, pip_start_x + total_pip_w - 36)]:
-        pygame.draw.rect(surf, col, (lx, legend_y, 8, 8))
+    legend_items = [
+        ("YOU", theme.player_accent),
+        ("TIE", theme.dim),
+        ("BOT", theme.bot_accent),
+    ]
+    legend_w = max(total_pip_w, 260)
+    legend_start_x = WINDOW_W // 2 - legend_w // 2
+    legend_step = legend_w // (len(legend_items) - 1)
+
+    for i, (label, col) in enumerate(legend_items):
         lbl = legend_font.render(label, True, theme.dim)
-        surf.blit(lbl, (lx + 12, legend_y - 1))
+        item_w = 8 + 8 + lbl.get_width()
+        item_x = legend_start_x + i * legend_step - item_w // 2
+        pygame.draw.rect(surf, col, (item_x, legend_y, 8, 8))
+        surf.blit(lbl, (item_x + 16, legend_y - 1))
 
 
 
@@ -831,13 +810,9 @@ def _screen_gameover(surf: pygame.Surface, theme: Theme, state: dict,
     draw_panel(surf, card_rect, theme)
     pygame.draw.rect(surf, theme.line2, card_rect, 2)
 
-    # Verdict
-    verdict_surf = display_font(13).render("FINAL VERDICT", True, theme.dim)
-    surf.blit(verdict_surf, verdict_surf.get_rect(center=(WINDOW_W // 2, card_y + 44)))
-
     # Title 
     title_surf = display_font(74).render(verdict, True, title_col)
-    surf.blit(title_surf, title_surf.get_rect(center=(WINDOW_W // 2, card_y + 120)))
+    surf.blit(title_surf, title_surf.get_rect(center=(WINDOW_W // 2, card_y + 100)))
 
     # Final scores
     score_y = card_y + 210
