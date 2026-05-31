@@ -14,3 +14,10 @@ venv/
 # Temp files
 *.tmp
 temp.txt
+
+# IDE
+.idea/
+.vscode/
+
+# Cache
+__pycache__/
