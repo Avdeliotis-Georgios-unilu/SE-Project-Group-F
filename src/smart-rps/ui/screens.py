@@ -36,8 +36,8 @@ def _screen_menu(surf: pygame.Surface, theme: Theme,
     total_title_w = rps.get_width() + arena.get_width()
 
     sub_font = body_font(20)
-    sub1 = sub_font.render("Play rock, paper, scissors with your camera.", True, theme.dim)
-    sub2 = sub_font.render("Pick your opponent and try to read the room.", True, theme.dim)
+    sub1 = sub_font.render("A classic game with a smarter opponent", True, theme.dim)
+    sub2 = sub_font.render("Can you outbluff the bot?", True, theme.dim)
     sub_h = sub1.get_height()
 
     btn_w, btn_h = 380, 62
