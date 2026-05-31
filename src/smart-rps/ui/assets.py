@@ -8,77 +8,6 @@ _PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 _PROJ_ROOT = os.path.dirname(_PKG_DIR)
 ASSET_DIR = os.path.join(_PROJ_ROOT, "assets")
 
-FIST_DATA = [
-    "................",
-    "................",
-    "....HHHHHH......",
-    "...HHKKKKHH.....",
-    "..HHKKKKKKH.....",
-    "..HKKKWWKKH.....",
-    ".HHKKKWWKKHH....",
-    ".HKKKKKKKKKH....",
-    ".HKKKKKKKKKH....",
-    ".HKKKKKKKKKH....",
-    "..HKKKKKKKKH....",
-    "..HHKKKKKKHH....",
-    "...HHKKKKHH.....",
-    "....HHHHHH......",
-    "................",
-    "................",
-]
-
-PALM_DATA = [
-    "................",
-    "...K..K..K..K...",
-    "..HK.HK.HK.HK...",
-    "..HK.HK.HK.HK...",
-    "..HK.HK.HK.HK...",
-    "..HK.HK.HK.HK...",
-    "..HKKHKKHKKHK...",
-    "..HKKKKKKKKKK...",
-    "..HKKKKKKKKKKK..",
-    "..HKKKKKKKKKKK..",
-    "..HKKKKKKKKKKK..",
-    "..HHKKKKKKKKKK..",
-    "...HHKKKKKKKKK..",
-    "....HHHHHHHHH...",
-    "................",
-    "................",
-]
-
-PEACE_DATA = [
-    "................",
-    "....K.....K.....",
-    "...HK....HK.....",
-    "...HK....HK.....",
-    "...HK....HK.....",
-    "...HK....HK.....",
-    "...HKKKKKHK.....",
-    "...HKWWWKKK.....",
-    "..HKKWWWKKKK....",
-    "..HKKKKKKKKK....",
-    "..HKKKKKKKKK....",
-    "..HKKKKKKKKK....",
-    "..HHKKKKKKKK....",
-    "...HHHHHHHHH....",
-    "................",
-    "................",
-]
-
-HAND_PALETTE = {
-    "K": (230, 181, 138),
-    "H": (122, 74, 42),
-    "W": (192, 140, 90),
-}
-
-GESTURE_DATA = {
-    "R": FIST_DATA,
-    "P": PALM_DATA,
-    "S": PEACE_DATA,
-}
-
-# Bot portraits — three robots
-
 BOT_EASY_DATA = [
     "................",
     "...GGGGGGGGGG...",
@@ -152,26 +81,24 @@ BOT_HARD_PAL = {
 BOT_PORTRAITS = {
     "easy": {
         "data": BOT_EASY_DATA, "palette": BOT_EASY_PAL,
-        "name": "Beginner", "lvl": "RANDOM",
-        "desc": "Picks uniformly at random. No strategy, no memory.",
-        "stats": {"accuracy": 1, "speed": 2, "deception": 1},
+        "name": "Random", "lvl": "BEGINNER",
+        "desc": "Picks randomly R/P/S. No strategy, no learning",
         "accent": (90, 200, 90),
     },
     "medium": {
         "data": BOT_MED_DATA, "palette": BOT_MED_PAL,
-        "name": "Intermediate", "lvl": "LEARNER",
-        "desc": "Counters your last move. Assumes you repeat.",
-        "stats": {"accuracy": 3, "speed": 3, "deception": 2},
+        "name": "Learner", "lvl": "INTERMEDIATE",
+        "desc": "Counters your most common move",
         "accent": (255, 180, 40),
     },
     "hard": {
         "data": BOT_HARD_DATA, "palette": BOT_HARD_PAL,
-        "name": "Advanced", "lvl": "STRATEGIC",
-        "desc": "Dataset-trained Markov + WSLS predictor. 69K matches.",
-        "stats": {"accuracy": 5, "speed": 5, "deception": 4},
+        "name": "Strategic", "lvl": "ADVANCED",
+        "desc": "Dataset-trained Markov + WSLS predictor",
         "accent": (255, 90, 90),
     },
 }
+
 
 def draw_pixel_art(surf: pygame.Surface, pos: tuple[int, int],
                    data: list[str], palette: dict[str, tuple[int, int, int]],
@@ -192,33 +119,30 @@ def draw_pixel_art(surf: pygame.Surface, pos: tuple[int, int],
             pygame.draw.rect(surf, colour, (px, py, scale, scale))
     return (w * scale, h * scale)
 
+
 _ITEM_IMAGES: dict[str, pygame.Surface] = {}
 _ITEM_IMAGE_SIZE = (220, 220)
 
+
 def _load_item_images() -> dict[str, pygame.Surface]:
-    global _ITEM_IMAGES
     if _ITEM_IMAGES:
         return _ITEM_IMAGES
+
     mapping = {"R": "RockMC.png", "P": "PaperMC.png", "S": "ScissorMC.png"}
+    colours = {"R": (100, 100, 100), "P": (244, 236, 208), "S": (184, 184, 192)}
     for move, filename in mapping.items():
         path = os.path.join(ASSET_DIR, filename)
         try:
-            img = pygame.image.load(path).convert_alpha()
-            _ITEM_IMAGES[move] = img
+            _ITEM_IMAGES[move] = pygame.image.load(path).convert_alpha()
         except Exception:
-            # Fallback: create a solid-colour rect so the game still works
             fallback = pygame.Surface(_ITEM_IMAGE_SIZE, pygame.SRCALPHA)
-            colours = {"R": (100, 100, 100), "P": (244, 236, 208), "S": (184, 184, 192)}
             fallback.fill(colours.get(move, (128, 128, 128)))
             _ITEM_IMAGES[move] = fallback
     return _ITEM_IMAGES
 
 
 def get_item_image(move: str, size: tuple[int, int] | None = None) -> pygame.Surface:
-    imgs = _load_item_images()
-    img = imgs.get(move)
-    if img is None:
-        img = imgs.get("R")  # fallback
-    if size is not None and img is not None:
+    img = _load_item_images().get(move) or _ITEM_IMAGES["R"]
+    if size is not None:
         img = pygame.transform.smoothscale(img, size)
     return img
